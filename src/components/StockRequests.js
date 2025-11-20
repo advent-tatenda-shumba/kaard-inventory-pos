@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { getItem, setItem } from '../utils/storage';
+import { getCollection, addItem, updateItem } from '../utils/storage'; // Cloud Import
 
 function StockRequests({ selectedLocation, currentUser }) {
   const [requests, setRequests] = useState([]);
   const [showNewRequest, setShowNewRequest] = useState(false);
   const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     itemName: '',
     quantity: '',
@@ -12,74 +13,96 @@ function StockRequests({ selectedLocation, currentUser }) {
   });
 
   useEffect(() => {
-    loadRequests();
-    loadInventory();
+    loadData();
   }, [selectedLocation]);
 
-  const loadRequests = () => {
-    const allRequests = getItem('stockRequests', []);
-    if (currentUser.role === 'admin') {
-      setRequests(allRequests);
-    } else {
-      setRequests(allRequests.filter(req => req.location === selectedLocation));
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Load Requests
+      const allRequests = await getCollection('stockRequests');
+      if (currentUser.role === 'admin') {
+        setRequests(allRequests);
+      } else {
+        setRequests(allRequests.filter(req => req.location === selectedLocation));
+      }
+
+      // Load Inventory (for the dropdown)
+      const allInventory = await getCollection('inventory');
+      const locationInventory = allInventory.filter(item => item.location === selectedLocation);
+      setInventory(locationInventory);
+    } catch (error) {
+      console.error("Error loading requests:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadInventory = () => {
-    const allInventory = getItem('inventory', []);
-    const locationInventory = allInventory.filter(item => item.location === selectedLocation);
-    setInventory(locationInventory);
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newRequest = {
-      id: Date.now(),
-      location: selectedLocation,
-      itemName: formData.itemName,
-      quantity: parseInt(formData.quantity),
-      reason: formData.reason,
-      status: 'pending',
-      requestedBy: currentUser.username,
-      requestDate: new Date().toISOString(),
-      approvedBy: null,
-      approvedDate: null,
-      notes: ''
-    };
-    
-    const allRequests = getItem('stockRequests', []);
-    setItem('stockRequests', [...allRequests, newRequest]);
-    
-    setFormData({ itemName: '', quantity: '', reason: '' });
-    setShowNewRequest(false);
-    loadRequests();
-    alert('Stock request submitted successfully!');
+    setLoading(true);
+    try {
+      const newRequest = {
+        location: selectedLocation,
+        itemName: formData.itemName,
+        quantity: parseInt(formData.quantity),
+        reason: formData.reason,
+        status: 'pending',
+        requestedBy: currentUser.username,
+        requestDate: new Date().toISOString(),
+        approvedBy: null,
+        approvedDate: null,
+        notes: ''
+      };
+      
+      await addItem('stockRequests', newRequest);
+      
+      setFormData({ itemName: '', quantity: '', reason: '' });
+      setShowNewRequest(false);
+      alert('Stock request submitted successfully!');
+      await loadData();
+    } catch (error) {
+      alert('Failed to submit request.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleApprove = (requestId) => {
-    const allRequests = getItem('stockRequests', []);
-    const updated = allRequests.map(req => 
-      req.id === requestId 
-        ? { ...req, status: 'approved', approvedBy: currentUser.username, approvedDate: new Date().toISOString() }
-        : req
-    );
-    setItem('stockRequests', updated);
-    loadRequests();
-    alert('Request approved! Remember to transfer the stock.');
+  const handleApprove = async (requestId) => {
+    setLoading(true);
+    try {
+      await updateItem('stockRequests', requestId, {
+        status: 'approved',
+        approvedBy: currentUser.username,
+        approvedDate: new Date().toISOString()
+      });
+      alert('Request approved! Remember to transfer the stock.');
+      await loadData();
+    } catch (error) {
+      alert('Failed to approve.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = (requestId) => {
+  const handleReject = async (requestId) => {
     const notes = prompt('Reason for rejection:');
     if (notes === null) return;
-
-    const allRequests = getItem('stockRequests', []);
-    const updated = allRequests.map(req => 
-      req.id === requestId 
-        ? { ...req, status: 'rejected', approvedBy: currentUser.username, approvedDate: new Date().toISOString(), notes }
-        : req
-    );
-    setItem('stockRequests', updated);
-    loadRequests();
+    
+    setLoading(true);
+    try {
+      await updateItem('stockRequests', requestId, {
+        status: 'rejected',
+        approvedBy: currentUser.username,
+        approvedDate: new Date().toISOString(),
+        notes
+      });
+      await loadData();
+    } catch (error) {
+      alert('Failed to reject.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -116,7 +139,7 @@ function StockRequests({ selectedLocation, currentUser }) {
                 >
                   <option value="">Select Item</option>
                   {inventory
-                    .filter(item => item.quantity < (item.lowStockThreshold || 10))
+                    .filter(item => item.quantity < (item.minStock || 10))
                     .map(item => (
                       <option key={item.id} value={item.name}>
                         {item.name} (Current: {item.quantity})
@@ -148,7 +171,9 @@ function StockRequests({ selectedLocation, currentUser }) {
               </div>
 
               <div className="modal-actions">
-                <button type="submit" className="btn btn-success">Submit Request</button>
+                <button type="submit" className="btn btn-success" disabled={loading}>
+                  {loading ? 'Submitting...' : 'Submit Request'}
+                </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowNewRequest(false)}>
                   Cancel
                 </button>
@@ -158,6 +183,7 @@ function StockRequests({ selectedLocation, currentUser }) {
         </div>
       )}
 
+      {loading ? <div style={{textAlign:'center', padding:'2rem'}}>Loading Requests...</div> : (
       <div className="table-container">
         <table>
           <thead>
@@ -232,6 +258,7 @@ function StockRequests({ selectedLocation, currentUser }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

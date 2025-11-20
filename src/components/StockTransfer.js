@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getItem, setItem } from '../utils/storage';
+import { getCollection, updateItem, addItem } from '../utils/storage';
 
 function StockTransfer({ currentLocation, currentUser }) {
   const [inventory, setInventory] = useState([]);
-  const [fromLocation, setFromLocation] = useState('warehouse');
-  const [toLocation, setToLocation] = useState('shop1');
+  const [fromLocation, setFromLocation] = useState('shop1'); // Default source
+  const [toLocation, setToLocation] = useState('warehouse'); // Default destination
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
   const [transfers, setTransfers] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const locations = {
     warehouse: 'Warehouse',
@@ -19,18 +20,33 @@ function StockTransfer({ currentLocation, currentUser }) {
     shop6: 'Fancy Liquor - Kadoma'
   };
 
-  const loadInventory = useCallback(() => {
-    const allInventory = getItem('inventory', []);
-    const locationInventory = allInventory.filter(
-      item => item.location === fromLocation
-    );
-    setInventory(locationInventory);
+  // 1. Load Inventory for the "From" Location
+  const loadInventory = useCallback(async () => {
+    setLoading(true);
+    try {
+      const allInventory = await getCollection('inventory');
+      // Filter items that belong to the source location
+      const locationInventory = allInventory.filter(
+        item => item.location === fromLocation
+      );
+      setInventory(locationInventory);
+    } catch (error) {
+      console.error("Error loading transfer inventory:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [fromLocation]);
 
-  // FIXED: Removed 'fromLocation' from the dependency array below
-  const loadTransfers = useCallback(() => {
-    const allTransfers = getItem('transfers', []);
-    setTransfers(allTransfers.slice(-10));
+  // 2. Load Transfer History
+  const loadTransfers = useCallback(async () => {
+    try {
+      const allTransfers = await getCollection('transfers');
+      // Sort by date (newest first) and take top 10
+      const sorted = allTransfers.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransfers(sorted.slice(0, 10));
+    } catch (error) {
+      console.error("Error loading transfers:", error);
+    }
   }, []);
 
   useEffect(() => {
@@ -47,89 +63,95 @@ function StockTransfer({ currentLocation, currentUser }) {
     );
   }
 
-  const handleTransfer = (e) => {
+  const handleTransfer = async (e) => {
     e.preventDefault();
+
     if (fromLocation === toLocation) {
       alert('Cannot transfer to the same location!');
       return;
     }
 
-    const allInventory = getItem('inventory', []);
-    const itemToTransfer = allInventory.find(item =>
-      item.id === parseInt(selectedItem) &&
-      item.location === fromLocation
-    );
-
-    if (!itemToTransfer) {
-      alert('Item not found!');
-      return;
-    }
-
     const transferQty = parseInt(quantity);
-
     if (isNaN(transferQty) || transferQty <= 0) {
       alert('Please enter a valid positive quantity.');
       return;
     }
 
-    if (transferQty > itemToTransfer.quantity) {
-      alert(`Not enough stock! Available: ${itemToTransfer.quantity}`);
-      return;
-    }
+    setLoading(true);
+    try {
+      // Refresh inventory to ensure stock levels are accurate
+      const allInventory = await getCollection('inventory');
+      
+      // A. Find Source Item
+      const sourceItem = allInventory.find(item => 
+        item.id === selectedItem && item.location === fromLocation
+      );
 
-    const updatedInventory = allInventory.map(item => {
-      if (item.id === itemToTransfer.id && item.location === fromLocation) {
-        return { ...item, quantity: item.quantity - transferQty };
+      if (!sourceItem) {
+        alert('Item not found in source location.');
+        setLoading(false);
+        return;
       }
-      return item;
-    });
 
-    const existingAtDestination = updatedInventory.find(
-      item =>
-        item.name === itemToTransfer.name &&
-        item.location === toLocation
-    );
+      if (transferQty > sourceItem.quantity) {
+        alert(`Not enough stock! Available: ${sourceItem.quantity}`);
+        setLoading(false);
+        return;
+      }
 
-    if (existingAtDestination) {
-      const finalInventory = updatedInventory.map(item => {
-        if (item.id === existingAtDestination.id) {
-          return { ...item, quantity: item.quantity + transferQty };
-        }
-        return item;
+      // B. Find (or Create) Destination Item
+      const destItem = allInventory.find(item => 
+        item.name === sourceItem.name && item.location === toLocation
+      );
+
+      // C. Perform the Transfer
+      
+      // 1. Deduct from Source
+      await updateItem('inventory', sourceItem.id, { 
+        quantity: sourceItem.quantity - transferQty 
       });
-      setItem('inventory', finalInventory);
-    } else {
-      const newItem = {
-        ...itemToTransfer,
-        id: Date.now(),
-        location: toLocation,
-        quantity: transferQty
-      };
-      setItem('inventory', [...updatedInventory, newItem]);
+
+      // 2. Add to Destination
+      if (destItem) {
+        // Update existing item
+        await updateItem('inventory', destItem.id, { 
+          quantity: destItem.quantity + transferQty 
+        });
+      } else {
+        // Create new item at destination
+        // We remove the old ID so Firebase generates a new unique one
+        const { id, ...itemData } = sourceItem;
+        await addItem('inventory', {
+          ...itemData,
+          location: toLocation,
+          quantity: transferQty
+        });
+      }
+
+      // 3. Record the Transfer Log
+      await addItem('transfers', {
+        date: new Date().toISOString(),
+        from: fromLocation,
+        to: toLocation,
+        itemName: sourceItem.name,
+        quantity: transferQty,
+        transferredBy: currentUser.username
+      });
+
+      alert('Transfer Successful!');
+      setQuantity('');
+      setSelectedItem('');
+      
+      // Refresh data
+      await loadInventory();
+      await loadTransfers();
+
+    } catch (error) {
+      console.error("Transfer failed:", error);
+      alert("Transfer failed. Please check console.");
+    } finally {
+      setLoading(false);
     }
-
-    const transfer = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      from: fromLocation,
-      to: toLocation,
-      itemName: itemToTransfer.name,
-      quantity: transferQty,
-      transferredBy: currentUser.username
-    };
-
-    const allTransfers = getItem('transfers', []);
-    setItem('transfers', [...allTransfers, transfer]);
-
-    alert(
-      `Successfully transferred ${transferQty} units of ${itemToTransfer.name} 
-       from ${locations[fromLocation]} to ${locations[toLocation]}`
-    );
-
-    setSelectedItem('');
-    setQuantity('');
-    loadInventory();
-    loadTransfers();
   };
 
   return (
@@ -170,18 +192,20 @@ function StockTransfer({ currentLocation, currentUser }) {
 
           <div className="form-group">
             <label>Select Item:</label>
-            <select
-              value={selectedItem}
-              onChange={(e) => setSelectedItem(e.target.value)}
-              required
-            >
-              <option value="">Choose an item...</option>
-              {inventory.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.name} (Available: {item.quantity})
-                </option>
-              ))}
-            </select>
+            {loading ? <p>Loading items...</p> : (
+              <select
+                value={selectedItem}
+                onChange={(e) => setSelectedItem(e.target.value)}
+                required
+              >
+                <option value="">Choose an item...</option>
+                {inventory.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} (Available: {item.quantity})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="form-group">
@@ -195,8 +219,8 @@ function StockTransfer({ currentLocation, currentUser }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary">
-            Transfer Stock
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Transferring...' : 'Transfer Stock'}
           </button>
         </form>
       </div>

@@ -1,19 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getItem } from '../utils/storage';
+import { getCollection } from '../utils/storage'; // Cloud Import
 
 function DailySalesReport({ selectedLocation, currentUser }) {
   const [todaySales, setTodaySales] = useState([]);
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
 
-  const loadDailySales = useCallback(() => {
+  const loadDailySales = useCallback(async () => {
     if (!selectedLocation) return;
+    setLoading(true);
     
-    const allSales = getItem('sales', []);
-    const locationSales = allSales.filter(sale => {
-      const saleDate = new Date(sale.date).toISOString().split('T')[0];
-      return sale.location === selectedLocation && saleDate === reportDate;
-    });
-    setTodaySales(locationSales);
+    try {
+      const allSales = await getCollection('sales');
+      const locationSales = allSales.filter(sale => {
+        const saleDate = new Date(sale.date).toISOString().split('T')[0];
+        // Filter by location, date, AND exclude voided sales
+        return sale.location === selectedLocation && 
+               saleDate === reportDate && 
+               !sale.voided;
+      });
+      setTodaySales(locationSales);
+    } catch (error) {
+      console.error("Error loading daily sales:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedLocation, reportDate]);
 
   useEffect(() => {
@@ -38,6 +49,8 @@ function DailySalesReport({ selectedLocation, currentUser }) {
   const handlePrint = () => {
     window.print();
   };
+
+  if (loading) return <div style={{padding:'2rem', textAlign:'center'}}>Generating Report...</div>;
 
   return (
     <div>
@@ -111,7 +124,7 @@ function DailySalesReport({ selectedLocation, currentUser }) {
                   <td style={{padding: '0.75rem'}}>
                     {new Date(sale.date).toLocaleTimeString()}
                   </td>
-                  <td style={{padding: '0.75rem'}}>{sale.id}</td>
+                  <td style={{padding: '0.75rem'}}>{sale.id.toString().slice(-6)}</td> {/* Short ID for print */}
                   <td style={{padding: '0.75rem', textAlign: 'center'}}>
                     {sale.items.reduce((sum, item) => sum + item.cartQuantity, 0)}
                   </td>

@@ -1,59 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import ReceiptModal from './ReceiptModal';
-import { getItem, setItem } from '../utils/storage';
+import { getCollection, updateItem } from '../utils/storage'; // UPDATED IMPORT
 
 function Sales({ selectedLocation, currentUser }) {
   const [sales, setSales] = useState([]);
   const [dateFilter, setDateFilter] = useState('today');
   const [viewingSale, setViewingSale] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Permission check
   const showFinancials = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
   useEffect(() => {
     loadSales();
   }, [selectedLocation, dateFilter]);
 
-  const loadSales = () => {
-    const allSales = getItem('sales', []);
+  const loadSales = async () => {
+    setLoading(true);
+    try {
+      const allSales = await getCollection('sales');
 
-    const cleanedSales = allSales.map(sale => ({
-      ...sale,
-      total: sale.total || 0,
-      profit: sale.profit || 0
-    }));
+      const locationSales = allSales.filter(sale => sale.location === selectedLocation);
 
-    if (JSON.stringify(allSales) !== JSON.stringify(cleanedSales)) {
-      setItem('sales', cleanedSales);
+      const filtered = locationSales.filter(sale => {
+        const saleDate = new Date(sale.date);
+        const now = new Date();
+
+        if (dateFilter === 'today') {
+          return saleDate.toDateString() === now.toDateString();
+        } else if (dateFilter === 'week') {
+          const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
+          return saleDate >= firstDay;
+        } else if (dateFilter === 'month') {
+          return saleDate.getMonth() === now.getMonth() && 
+                 saleDate.getFullYear() === now.getFullYear();
+        }
+        return true;
+      });
+
+      setSales(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
+    } catch (error) {
+      console.error("Error loading sales:", error);
+    } finally {
+      setLoading(false);
     }
-
-    const locationSales = cleanedSales.filter(sale => sale.location === selectedLocation);
-
-    const filtered = locationSales.filter(sale => {
-      const saleDate = new Date(sale.date);
-      const now = new Date();
-
-      if (dateFilter === 'today') {
-        return saleDate.toDateString() === now.toDateString();
-      } else if (dateFilter === 'week') {
-        const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-        return saleDate >= firstDay;
-      } else if (dateFilter === 'month') {
-        return saleDate.getMonth() === now.getMonth() && 
-               saleDate.getFullYear() === now.getFullYear();
-      }
-      return true;
-    });
-
-    setSales(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
   };
 
-  const handleVoidSale = (saleId) => {
-    if (!currentUser) {
-      alert('User not identified');
-      return;
-    }
-
+  const handleVoidSale = async (saleId) => {
+    if (!currentUser) return;
     if (currentUser.role !== 'manager' && currentUser.role !== 'admin') {
       alert('Only managers can void sales!');
       return;
@@ -62,41 +55,51 @@ function Sales({ selectedLocation, currentUser }) {
     const reason = prompt('Enter reason for voiding this sale:');
     if (!reason) return;
 
-    const allSales = getItem('sales', []);
-    const sale = allSales.find(s => s.id === saleId);
+    setLoading(true);
+    try {
+        const allSales = await getCollection('sales');
+        const sale = allSales.find(s => s.id === saleId);
 
-    if (!sale) {
-      alert('Sale not found!');
-      return;
+        if (!sale) {
+            alert('Sale not found!');
+            return;
+        }
+
+        // 1. Restore Inventory (using Cloud logic)
+        const allInventory = await getCollection('inventory');
+        
+        // We need to update items one by one
+        const updatePromises = allInventory.map(item => {
+            const saleItem = sale.items.find(
+                si => si.id === item.id && si.location === selectedLocation
+            );
+            if (saleItem) {
+                return updateItem('inventory', item.id, { 
+                    quantity: item.quantity + saleItem.cartQuantity 
+                });
+            }
+            return null;
+        }).filter(p => p !== null);
+
+        await Promise.all(updatePromises);
+
+        // 2. Mark Sale as Voided in Cloud
+        await updateItem('sales', saleId, {
+            voided: true,
+            voidedBy: currentUser.username,
+            voidReason: reason,
+            voidDate: new Date().toISOString()
+        });
+
+        alert('Sale voided successfully. Inventory restored.');
+        await loadSales();
+
+    } catch (error) {
+        console.error("Error voiding sale:", error);
+        alert("Failed to void sale.");
+    } finally {
+        setLoading(false);
     }
-
-    const allInventory = getItem('inventory', []);
-    const updatedInventory = allInventory.map(item => {
-      const saleItem = sale.items.find(
-        si => si.id === item.id && si.location === selectedLocation
-      );
-      if (saleItem) {
-        return { ...item, quantity: item.quantity + saleItem.cartQuantity };
-      }
-      return item;
-    });
-    setItem('inventory', updatedInventory);
-
-    const updatedSales = allSales.map(s => 
-      s.id === saleId 
-        ? { 
-            ...s, 
-            voided: true, 
-            voidedBy: currentUser.username, 
-            voidReason: reason, 
-            voidDate: new Date().toISOString() 
-          }
-        : s
-    );
-    setItem('sales', updatedSales);
-
-    alert('Sale voided successfully. Inventory restored.');
-    loadSales();
   };
 
   const totalSales = sales
@@ -125,7 +128,6 @@ function Sales({ selectedLocation, currentUser }) {
           <p>${totalSales.toFixed(2)}</p>
         </div>
         
-        {/* HIDDEN FROM CASHIERS */}
         {showFinancials && (
           <div className="card">
             <h2>Total Profit</h2>
@@ -139,6 +141,7 @@ function Sales({ selectedLocation, currentUser }) {
         </div>
       </div>
 
+      {loading ? <p style={{textAlign:'center'}}>Loading Sales Data...</p> : (
       <div className="table-container">
         <table>
           <thead>
@@ -147,7 +150,6 @@ function Sales({ selectedLocation, currentUser }) {
               <th>Time</th>
               <th>Items</th>
               <th>Total</th>
-              {/* HIDDEN FROM CASHIERS */}
               {showFinancials && <th>Profit</th>}
               <th>Cashier</th>
               <th>Status</th>
@@ -172,7 +174,6 @@ function Sales({ selectedLocation, currentUser }) {
                   <td>{sale.items.reduce((sum, item) => sum + item.cartQuantity, 0)}</td>
                   <td>${(sale.total || 0).toFixed(2)}</td>
                   
-                  {/* HIDDEN FROM CASHIERS */}
                   {showFinancials && (
                     <td style={{ 
                       color: (sale.profit || 0) > 0 
@@ -215,6 +216,7 @@ function Sales({ selectedLocation, currentUser }) {
           </tbody>
         </table>
       </div>
+      )}
 
       {viewingSale && (
         <ReceiptModal sale={viewingSale} onClose={() => setViewingSale(null)} />

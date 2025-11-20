@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { auth } from './firebase'; // Import auth service
+import { auth } from './firebase'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -12,7 +12,7 @@ import Reports from './components/Reports';
 import ReceiptViewer from './components/ReceiptViewer';
 import StockRequests from './components/StockRequests';
 import DailySalesReport from './components/DailySalesReport';
-import { uploadLocalDataToFirebase } from './utils/storage';
+// NOTE: Removed 'uploadLocalDataToFirebase' import since the button is gone
 
 const LOCATIONS = {
   warehouse: 'Warehouse (Admin Only)',
@@ -91,12 +91,6 @@ function App() {
     setCurrentPage(page);
   };
 
-  const handleMigration = async () => {
-    if (window.confirm("Upload all local data to Firebase? Only do this once!")) {
-      await uploadLocalDataToFirebase();
-    }
-  };
-
   if (!authReady || loading) return <div className="loading">Loading System...</div>;
 
   if (viewingReceiptId) {
@@ -154,10 +148,38 @@ function App() {
           <button className={currentPage === 'pos' ? 'active' : ''} onClick={() => setCurrentPage('pos')}>POS</button>
           <button className={currentPage === 'sales' ? 'active' : ''} onClick={() => setCurrentPage('sales')}>Sales</button>
           
-          {currentUser.role === 'admin' && (
-            <button onClick={handleMigration} style={{backgroundColor: 'orange', color: 'black'}}>
-              ⚠️ Upload Data
+          {/* RESTORED BUTTONS FOR CASHIERS */}
+          {currentUser?.role === 'cashier' && (
+            <button 
+              className={currentPage === 'dailyreport' ? 'active' : ''} 
+              onClick={() => setCurrentPage('dailyreport')}
+            >
+              Daily Report
             </button>
+          )}
+
+          {/* RESTORED BUTTONS FOR ADMIN/MANAGERS */}
+          {currentUser?.role !== 'cashier' && (
+            <>
+              <button 
+                className={currentPage === 'transfer' ? 'active' : ''} 
+                onClick={() => setCurrentPage('transfer')}
+              >
+                Transfer
+              </button>
+              <button 
+                className={currentPage === 'requests' ? 'active' : ''} 
+                onClick={() => setCurrentPage('requests')}
+              >
+                Stock Requests
+              </button>
+              <button 
+                className={currentPage === 'reports' ? 'active' : ''} 
+                onClick={() => setCurrentPage('reports')}
+              >
+                Reports
+              </button>
+            </>
           )}
         </nav>
 

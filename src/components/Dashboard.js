@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getItem } from '../utils/storage';
+import { getCollection } from '../utils/storage'; // NOW USING CLOUD
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, Legend } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-// Added currentUser to props
 function Dashboard({ selectedLocation, onNavigate, currentUser }) {
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -15,8 +14,8 @@ function Dashboard({ selectedLocation, onNavigate, currentUser }) {
     topProducts: [],
     categoryDistribution: []
   });
+  const [loading, setLoading] = useState(true);
 
-  // Permission check
   const showFinancials = selectedLocation && (currentUser?.role === 'admin' || currentUser?.role === 'manager');
 
   useEffect(() => {
@@ -25,59 +24,70 @@ function Dashboard({ selectedLocation, onNavigate, currentUser }) {
     }
   }, [selectedLocation]);
 
-  const loadStats = () => {
-    const inventory = getItem('inventory', []);
-    const sales = getItem('sales', []);
-    const locationInventory = inventory.filter(item => item.location === selectedLocation);
-    
-    const today = new Date().toDateString();
-    const todaySales = sales.filter(sale => 
-      sale.location === selectedLocation && 
-      new Date(sale.date).toDateString() === today
-    );
+  const loadStats = async () => {
+    setLoading(true);
+    try {
+      // FETCH FROM CLOUD
+      const inventory = await getCollection('inventory');
+      const sales = await getCollection('sales');
+      
+      const locationInventory = inventory.filter(item => item.location === selectedLocation);
+      
+      const today = new Date().toDateString();
+      const todaySales = sales.filter(sale => 
+        sale.location === selectedLocation && 
+        new Date(sale.date).toDateString() === today
+      );
 
-    const totalSalesValue = todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const totalProfitValue = todaySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
-    const lowStockItems = locationInventory.filter(item => item.quantity <= (item.minStock || 5));
-    const totalValue = locationInventory.reduce((sum, item) => sum + (item.quantity * (item.costPrice || 0)), 0);
+      const totalSalesValue = todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+      const totalProfitValue = todaySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+      const lowStockItems = locationInventory.filter(item => item.quantity <= (item.minStock || 5));
+      const totalValue = locationInventory.reduce((sum, item) => sum + (item.quantity * (item.costPrice || 0)), 0);
 
-    const productSales = {};
-    sales
-      .filter(sale => sale.location === selectedLocation)
-      .forEach(sale => {
-        sale.items.forEach(item => {
-          if (!productSales[item.name]) productSales[item.name] = 0;
-          productSales[item.name] += item.cartQuantity;
+      const productSales = {};
+      sales
+        .filter(sale => sale.location === selectedLocation)
+        .forEach(sale => {
+          sale.items.forEach(item => {
+            if (!productSales[item.name]) productSales[item.name] = 0;
+            productSales[item.name] += item.cartQuantity;
+          });
         });
+
+      const topProducts = Object.entries(productSales)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      const categoryCounts = locationInventory.reduce((acc, item) => {
+        const cat = item.category || 'Uncategorized';
+        if (!acc[cat]) acc[cat] = 0;
+        acc[cat] += 1;
+        return acc;
+      }, {});
+
+      const categoryDistribution = Object.entries(categoryCounts)
+        .map(([name, value]) => ({ name, value }));
+
+      setStats({
+        totalProducts: locationInventory.length,
+        lowStockCount: lowStockItems.length,
+        todaySales: totalSalesValue,
+        todayProfit: totalProfitValue,
+        inventoryValue: totalValue,
+        topProducts,
+        categoryDistribution
       });
-
-    const topProducts = Object.entries(productSales)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
-
-    const categoryCounts = locationInventory.reduce((acc, item) => {
-      const cat = item.category || 'Uncategorized';
-      if (!acc[cat]) acc[cat] = 0;
-      acc[cat] += 1;
-      return acc;
-    }, {});
-
-    const categoryDistribution = Object.entries(categoryCounts)
-      .map(([name, value]) => ({ name, value }));
-
-    setStats({
-      totalProducts: locationInventory.length,
-      lowStockCount: lowStockItems.length,
-      todaySales: totalSalesValue,
-      todayProfit: totalProfitValue,
-      inventoryValue: totalValue,
-      topProducts,
-      categoryDistribution
-    });
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const displayLocation = selectedLocation ? selectedLocation.toUpperCase() : 'LOADING...';
+
+  if (loading) return <div style={{padding: '2rem', textAlign: 'center'}}>Loading Dashboard Data...</div>;
 
   return (
     <div className="dashboard">
@@ -91,7 +101,6 @@ function Dashboard({ selectedLocation, onNavigate, currentUser }) {
           <p>Today's Revenue</p>
         </div>
         
-        {/* HIDDEN FROM CASHIERS */}
         {showFinancials && (
           <>
             <div className="stat-card">

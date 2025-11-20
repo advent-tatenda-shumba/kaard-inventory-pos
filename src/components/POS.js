@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getItem, setItem } from '../utils/storage';
+import { getCollection, addItem, updateItem } from '../utils/storage';
 import ReceiptModal from './ReceiptModal';
 
 function POS({ selectedLocation, currentUser }) {
@@ -8,17 +8,28 @@ function POS({ selectedLocation, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const [loading, setLoading] = useState(false);
 
+  // 1. Load Inventory from Cloud
   useEffect(() => {
-    loadInventory();
+    if (selectedLocation) {
+      loadInventory();
+    }
   }, [selectedLocation]);
 
-  const loadInventory = () => {
-    const allInventory = getItem('inventory', []);
-    const locationInventory = allInventory.filter(
-      item => item.location === selectedLocation && item.quantity > 0
-    );
-    setInventory(locationInventory);
+  const loadInventory = async () => {
+    setLoading(true);
+    try {
+      const allInventory = await getCollection('inventory');
+      const locationInventory = allInventory.filter(
+        item => item.location === selectedLocation && item.quantity > 0
+      );
+      setInventory(locationInventory);
+    } catch (error) {
+      console.error("Error loading POS inventory:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addToCart = (product) => {
@@ -65,65 +76,66 @@ function POS({ selectedLocation, currentUser }) {
     }, 0);
   };
 
-  const handleCheckout = () => {
+  // 2. Checkout Logic (Cloud Version)
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       alert('Cart is empty!');
       return;
     }
 
-    // --- FIX 2B: VALIDATE INVENTORY BEFORE SALE ---
-    // Get the latest inventory state
-    const currentInventory = getItem('inventory', []);
-
-    // Check every item in the cart
-    for (const cartItem of cart) {
-      const inventoryItem = currentInventory.find(i => i.id === cartItem.id && i.location === selectedLocation);
+    setLoading(true);
+    try {
+      // A. Validate Stock one last time (Race Condition Check)
+      const currentInventory = await getCollection('inventory');
       
-      if (!inventoryItem) {
-        alert(`Error: The product "${cartItem.name}" has been removed from the system. Please remove it from the cart.`);
-        loadInventory(); // Refresh UI
-        return;
+      for (const cartItem of cart) {
+        const dbItem = currentInventory.find(i => i.id === cartItem.id);
+        if (!dbItem || dbItem.quantity < cartItem.cartQuantity) {
+          alert(`Error: Stock changed for ${cartItem.name}. Please re-add item.`);
+          await loadInventory();
+          setLoading(false);
+          return;
+        }
       }
 
-      if (inventoryItem.quantity < cartItem.cartQuantity) {
-        alert(`Error: Not enough stock for "${cartItem.name}". Available: ${inventoryItem.quantity}`);
-        loadInventory(); // Refresh UI
-        return;
-      }
+      const total = calculateTotal();
+      const profit = calculateProfit();
+
+      // B. Deduct Stock in Firebase (Item by Item)
+      // We use Promise.all to do them in parallel for speed
+      const updatePromises = cart.map(cartItem => {
+        const dbItem = currentInventory.find(i => i.id === cartItem.id);
+        const newQuantity = dbItem.quantity - cartItem.cartQuantity;
+        return updateItem('inventory', cartItem.id, { quantity: newQuantity });
+      });
+
+      await Promise.all(updatePromises);
+
+      // C. Save Sale Record to Firebase
+      const sale = {
+        location: selectedLocation,
+        items: cart,
+        total: total || 0,
+        profit: profit || 0,
+        date: new Date().toISOString(),
+        cashier: currentUser.username || 'Unknown', // Safe fallback
+        paymentMethod: 'cash' // Future proofing
+      };
+
+      const savedSale = await addItem('sales', sale);
+
+      // D. Finish Up
+      setLastSale({ ...sale, id: savedSale.id }); // Use the real Firebase ID
+      setShowReceipt(true);
+      setCart([]);
+      await loadInventory(); // Refresh grid to show new stock levels
+
+    } catch (error) {
+      console.error("Checkout failed:", error);
+      alert("Transaction failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    // ----------------------------------------------
-
-    const total = calculateTotal();
-    const profit = calculateProfit();
-
-    // Update inventory
-    const updatedInventory = currentInventory.map(item => {
-      const cartItem = cart.find(c => c.id === item.id && c.location === selectedLocation);
-      if (cartItem) {
-        return { ...item, quantity: item.quantity - cartItem.cartQuantity };
-      }
-      return item;
-    });
-
-    setItem('inventory', updatedInventory);
-
-    const sale = {
-      id: Date.now(),
-      location: selectedLocation,
-      items: cart,
-      total: total || 0,
-      profit: profit || 0,
-      date: new Date().toISOString(),
-      cashier: currentUser.username
-    };
-
-    const sales = getItem('sales', []);
-    setItem('sales', [...sales, sale]);
-
-    setLastSale(sale);
-    setShowReceipt(true);
-    setCart([]);
-    loadInventory();
   };
 
   const filteredInventory = inventory.filter(item =>
@@ -148,6 +160,8 @@ function POS({ selectedLocation, currentUser }) {
             borderRadius: '4px' 
           }}
         />
+
+        {loading && <p style={{textAlign: 'center'}}>Syncing with cloud...</p>}
 
         <div className="products-grid">
           {filteredInventory.map(product => (
@@ -209,11 +223,11 @@ function POS({ selectedLocation, currentUser }) {
         </div>
 
         <div className="cart-actions">
-          <button className="btn btn-danger" onClick={() => setCart([])}>
+          <button className="btn btn-danger" onClick={() => setCart([])} disabled={loading}>
             Clear
           </button>
-          <button className="btn btn-success" onClick={handleCheckout}>
-            Checkout
+          <button className="btn btn-success" onClick={handleCheckout} disabled={loading}>
+            {loading ? 'Processing...' : 'Checkout'}
           </button>
         </div>
       </div>
