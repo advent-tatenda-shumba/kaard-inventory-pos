@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { getItem } from '../utils/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-function Reports({ selectedLocation }) {
+// Added currentUser to props
+function Reports({ selectedLocation, currentUser }) {
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalProfit: 0,
@@ -12,6 +13,9 @@ function Reports({ selectedLocation }) {
     salesOverTime: []
   });
 
+  // Permission check
+  const showFinancials = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
   useEffect(() => {
     generateReports();
   }, [selectedLocation]);
@@ -19,20 +23,16 @@ function Reports({ selectedLocation }) {
   const generateReports = () => {
     const allInventory = getItem('inventory', []);
     const allSales = getItem('sales', []);
-
-    // Exclude voided sales
+    
     const activeSales = allSales.filter(sale => !sale.voided);
     const locationSales = activeSales.filter(sale => sale.location === selectedLocation);
 
-    // Calculate totals
     const totalRevenue = locationSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalProfit = locationSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
-
-    // Inventory stats
+    
     const locationInventory = allInventory.filter(item => item.location === selectedLocation);
     const lowStockItems = locationInventory.filter(item => item.quantity <= item.minStock);
 
-    // Top selling products
     const productSales = {};
     locationSales.forEach(sale => {
       sale.items.forEach(item => {
@@ -51,7 +51,6 @@ function Reports({ selectedLocation }) {
       .slice(0, 5)
       .map(([name, data]) => ({ name, ...data }));
 
-    // Sales & profit over time (last 30 days)
     const salesOverTime = locationSales.reduce((acc, sale) => {
       const date = new Date(sale.date).toLocaleDateString();
       if (!acc[date]) {
@@ -68,7 +67,7 @@ function Reports({ selectedLocation }) {
       totalSales: locationSales.length,
       topProducts,
       lowStockItems,
-      salesOverTime: Object.values(salesOverTime).slice(-30) // last 30 days
+      salesOverTime: Object.values(salesOverTime).slice(-30)
     });
   };
 
@@ -83,10 +82,15 @@ function Reports({ selectedLocation }) {
           <h3>${stats.totalRevenue.toFixed(2)}</h3>
           <p>Total Revenue</p>
         </div>
-        <div className="stat-card">
-          <h3>${stats.totalProfit.toFixed(2)}</h3>
-          <p>Total Profit</p>
-        </div>
+        
+        {/* HIDDEN FROM CASHIERS */}
+        {showFinancials && (
+          <div className="stat-card">
+            <h3>${stats.totalProfit.toFixed(2)}</h3>
+            <p>Total Profit</p>
+          </div>
+        )}
+
         <div className="stat-card">
           <h3>{stats.totalSales}</h3>
           <p>Total Transactions</p>
@@ -107,7 +111,8 @@ function Reports({ selectedLocation }) {
             <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
             <Legend />
             <Bar dataKey="revenue" fill="var(--primary-color)" />
-            <Bar dataKey="profit" fill="var(--success-color)" />
+            {/* HIDDEN FROM CASHIERS */}
+            {showFinancials && <Bar dataKey="profit" fill="var(--success-color)" />}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -124,7 +129,8 @@ function Reports({ selectedLocation }) {
                   <th>Product</th>
                   <th>Units Sold</th>
                   <th>Total Revenue</th>
-                  <th>Total Profit</th>
+                  {/* HIDDEN FROM CASHIERS */}
+                  {showFinancials && <th>Total Profit</th>}
                 </tr>
               </thead>
               <tbody>
@@ -133,9 +139,13 @@ function Reports({ selectedLocation }) {
                     <td>{product.name}</td>
                     <td>{product.count}</td>
                     <td>${product.revenue.toFixed(2)}</td>
-                    <td style={{ color: product.profit > 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                      ${product.profit.toFixed(2)}
-                    </td>
+                    
+                    {/* HIDDEN FROM CASHIERS */}
+                    {showFinancials && (
+                      <td style={{ color: product.profit > 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                        ${product.profit.toFixed(2)}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

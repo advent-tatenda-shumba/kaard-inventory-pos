@@ -7,7 +7,6 @@ const categories = [
 ];
 
 function Inventory({ selectedLocation, userRole, currentUser }) {
-  // ✅ Move canSeeCostPrice INSIDE the component
   const canSeeCostPrice = userRole === 'admin' || userRole === 'manager';
   
   const [inventory, setInventory] = useState([]);
@@ -32,13 +31,17 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
 
   const loadInventory = () => {
     const allInventory = getItem('inventory', []);
-    const locationInventory = allInventory.filter(item => item.location === selectedLocation);
+    const locationInventory = allInventory.filter(
+      item => item.location === selectedLocation
+    );
     setInventory(locationInventory);
   };
 
   const saveInventory = (updatedInventory) => {
     const allInventory = getItem('inventory', []);
-    const otherLocations = allInventory.filter(item => item.location !== selectedLocation);
+    const otherLocations = allInventory.filter(
+      item => item.location !== selectedLocation
+    );
     setItem('inventory', [...otherLocations, ...updatedInventory]);
     setInventory(updatedInventory);
   };
@@ -54,9 +57,18 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
       minStock: parseInt(formData.minStock) || 0
     };
 
+    // --- FIX: PREVENT NEGATIVE VALUES ---
+    if (processedData.costPrice < 0 || processedData.sellPrice < 0 || processedData.quantity < 0 || processedData.minStock < 0) {
+      alert('Prices and quantities cannot be negative.');
+      return;
+    }
+    // ------------------------------------
+
     if (editingItem) {
       const updated = inventory.map(item => 
-        item.id === editingItem.id ? { ...processedData, id: item.id, location: selectedLocation } : item
+        item.id === editingItem.id 
+          ? { ...processedData, id: item.id, location: selectedLocation } 
+          : item
       );
       saveInventory(updated);
     } else {
@@ -84,7 +96,16 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', barcode: '', category: '', costPrice: '', sellPrice: '', quantity: '', minStock: '', unit: 'pieces' });
+    setFormData({ 
+      name: '', 
+      barcode: '', 
+      category: '', 
+      costPrice: '', 
+      sellPrice: '', 
+      quantity: '', 
+      minStock: '', 
+      unit: 'pieces' 
+    });
     setEditingItem(null);
     setShowModal(false);
   };
@@ -126,39 +147,53 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
 
       <div className="table-container">
         <table>
-           <thead>
-  <tr>
-    <th>Name</th>
-    <th>Barcode</th>
-    {canSeeCostPrice && <th>Cost Price</th>}
-    <th>Sell Price</th>
-    <th>Quantity</th>
-    {userRole === 'admin' && <th>Actions</th>}
-  </tr>
-</thead>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Barcode</th>
+              {canSeeCostPrice && <th>Cost Price</th>}
+              <th>Sell Price</th>
+              <th>Quantity</th>
+              {userRole === 'admin' && <th>Actions</th>}
+            </tr>
+          </thead>
           <tbody>
-  {inventory.map(item => (
-    <tr key={item.id}>
-      <td>{item.name}</td>
-      <td>{item.barcode || 'N/A'}</td>
-      {canSeeCostPrice && <td>${(item.costPrice || 0).toFixed(2)}</td>}
-      <td>${(item.sellPrice || 0).toFixed(2)}</td>
-      <td style={{ 
-        color: item.quantity < (item.lowStockThreshold || 10) ? 'var(--danger-color)' : 'inherit',
-        fontWeight: item.quantity < (item.lowStockThreshold || 10) ? 'bold' : 'normal'
-      }}>
-        {item.quantity}
-        {item.quantity < (item.lowStockThreshold || 10) && ' ⚠️'}
-      </td>
-      {userRole === 'admin' && (
-        <td>
-          <button className="btn btn-primary" onClick={() => handleEdit(item)}>Edit</button>
-          <button className="btn btn-danger" onClick={() => handleDelete(item.id)}>Delete</button>
-        </td>
-      )}
-    </tr>
-  ))}
-</tbody>
+            {filteredInventory.map(item => (
+              <tr key={item.id}>
+                <td>{item.name}</td>
+                <td>{item.barcode || 'N/A'}</td>
+                {canSeeCostPrice && <td>${(item.costPrice || 0).toFixed(2)}</td>}
+                <td>${(item.sellPrice || 0).toFixed(2)}</td>
+                <td style={{ 
+                  color: item.quantity < (item.lowStockThreshold || 10) 
+                    ? 'var(--danger-color)' 
+                    : 'inherit',
+                  fontWeight: item.quantity < (item.lowStockThreshold || 10) 
+                    ? 'bold' 
+                    : 'normal'
+                }}>
+                  {item.quantity}
+                  {item.quantity < (item.lowStockThreshold || 10) && ' ⚠️'}
+                </td>
+                {userRole === 'admin' && (
+                  <td>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={() => handleEdit(item)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="btn btn-danger" 
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
 
@@ -166,7 +201,7 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
         <div className="modal-overlay" onClick={resetForm}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>{editingItem ? 'Edit Product' : 'Add New Product'}</h2>
-            <div>
+            <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Product Name</label>
                 <input
@@ -256,14 +291,14 @@ function Inventory({ selectedLocation, userRole, currentUser }) {
               </div>
 
               <div className="modal-actions">
-                <button className="btn btn-primary" onClick={handleSubmit}>
+                <button type="submit" className="btn btn-primary">
                   {editingItem ? 'Update' : 'Add'} Product
                 </button>
-                <button className="btn btn-secondary" onClick={resetForm}>
+                <button type="button" className="btn btn-secondary" onClick={resetForm}>
                   Cancel
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

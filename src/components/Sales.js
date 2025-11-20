@@ -7,6 +7,9 @@ function Sales({ selectedLocation, currentUser }) {
   const [dateFilter, setDateFilter] = useState('today');
   const [viewingSale, setViewingSale] = useState(null);
 
+  // Permission check
+  const showFinancials = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
   useEffect(() => {
     loadSales();
   }, [selectedLocation, dateFilter]);
@@ -14,14 +17,12 @@ function Sales({ selectedLocation, currentUser }) {
   const loadSales = () => {
     const allSales = getItem('sales', []);
 
-    // Clean up any sales with null/undefined totals (one-time fix)
     const cleanedSales = allSales.map(sale => ({
       ...sale,
       total: sale.total || 0,
       profit: sale.profit || 0
     }));
 
-    // Save cleaned data back (this fixes existing bad data)
     if (JSON.stringify(allSales) !== JSON.stringify(cleanedSales)) {
       setItem('sales', cleanedSales);
     }
@@ -38,7 +39,8 @@ function Sales({ selectedLocation, currentUser }) {
         const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
         return saleDate >= firstDay;
       } else if (dateFilter === 'month') {
-        return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
+        return saleDate.getMonth() === now.getMonth() && 
+               saleDate.getFullYear() === now.getFullYear();
       }
       return true;
     });
@@ -46,12 +48,10 @@ function Sales({ selectedLocation, currentUser }) {
     setSales(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
   };
 
-  // This function MUST be inside the component to access currentUser
   const handleVoidSale = (saleId) => {
-    // Safety check for currentUser
     if (!currentUser) {
-        alert('User not identified');
-        return;
+      alert('User not identified');
+      return;
     }
 
     if (currentUser.role !== 'manager' && currentUser.role !== 'admin') {
@@ -70,10 +70,11 @@ function Sales({ selectedLocation, currentUser }) {
       return;
     }
 
-    // Restore inventory
     const allInventory = getItem('inventory', []);
     const updatedInventory = allInventory.map(item => {
-      const saleItem = sale.items.find(si => si.id === item.id && si.location === selectedLocation);
+      const saleItem = sale.items.find(
+        si => si.id === item.id && si.location === selectedLocation
+      );
       if (saleItem) {
         return { ...item, quantity: item.quantity + saleItem.cartQuantity };
       }
@@ -81,10 +82,15 @@ function Sales({ selectedLocation, currentUser }) {
     });
     setItem('inventory', updatedInventory);
 
-    // Mark sale as voided
     const updatedSales = allSales.map(s => 
       s.id === saleId 
-        ? { ...s, voided: true, voidedBy: currentUser.username, voidReason: reason, voidDate: new Date().toISOString() }
+        ? { 
+            ...s, 
+            voided: true, 
+            voidedBy: currentUser.username, 
+            voidReason: reason, 
+            voidDate: new Date().toISOString() 
+          }
         : s
     );
     setItem('sales', updatedSales);
@@ -93,9 +99,13 @@ function Sales({ selectedLocation, currentUser }) {
     loadSales();
   };
 
-  // Updated total calculations to exclude voided sales
-  const totalSales = sales.filter(s => !s.voided).reduce((sum, sale) => sum + (sale.total || 0), 0);
-  const totalProfit = sales.filter(s => !s.voided).reduce((sum, sale) => sum + (sale.profit || 0), 0);
+  const totalSales = sales
+    .filter(s => !s.voided)
+    .reduce((sum, sale) => sum + (sale.total || 0), 0);
+  
+  const totalProfit = sales
+    .filter(s => !s.voided)
+    .reduce((sum, sale) => sum + (sale.profit || 0), 0);
 
   return (
     <div>
@@ -114,10 +124,15 @@ function Sales({ selectedLocation, currentUser }) {
           <h2>Total Sales</h2>
           <p>${totalSales.toFixed(2)}</p>
         </div>
-        <div className="card">
-          <h2>Total Profit</h2>
-          <p>${totalProfit.toFixed(2)}</p>
-        </div>
+        
+        {/* HIDDEN FROM CASHIERS */}
+        {showFinancials && (
+          <div className="card">
+            <h2>Total Profit</h2>
+            <p>${totalProfit.toFixed(2)}</p>
+          </div>
+        )}
+
         <div className="card">
           <h2>Transactions</h2>
           <p>{sales.length}</p>
@@ -132,7 +147,8 @@ function Sales({ selectedLocation, currentUser }) {
               <th>Time</th>
               <th>Items</th>
               <th>Total</th>
-              <th>Profit</th>
+              {/* HIDDEN FROM CASHIERS */}
+              {showFinancials && <th>Profit</th>}
               <th>Cashier</th>
               <th>Status</th>
               <th>Actions</th>
@@ -142,15 +158,31 @@ function Sales({ selectedLocation, currentUser }) {
             {sales.map(sale => {
               const date = new Date(sale.date);
               const isVoided = sale.voided;
+              
               return (
-                <tr key={sale.id} style={isVoided ? {backgroundColor: '#ffe6e6', textDecoration: 'line-through'} : {}}>
+                <tr 
+                  key={sale.id} 
+                  style={isVoided ? {
+                    backgroundColor: '#ffe6e6', 
+                    textDecoration: 'line-through'
+                  } : {}}
+                >
                   <td>{date.toLocaleDateString()}</td>
                   <td>{date.toLocaleTimeString()}</td>
                   <td>{sale.items.reduce((sum, item) => sum + item.cartQuantity, 0)}</td>
                   <td>${(sale.total || 0).toFixed(2)}</td>
-                  <td style={{ color: (sale.profit || 0) > 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                    ${(sale.profit || 0).toFixed(2)}
-                  </td>
+                  
+                  {/* HIDDEN FROM CASHIERS */}
+                  {showFinancials && (
+                    <td style={{ 
+                      color: (sale.profit || 0) > 0 
+                        ? 'var(--success-color)' 
+                        : 'var(--danger-color)' 
+                    }}>
+                      ${(sale.profit || 0).toFixed(2)}
+                    </td>
+                  )}
+                  
                   <td>{sale.cashier}</td>
                   <td>
                     {isVoided ? (
@@ -160,10 +192,14 @@ function Sales({ selectedLocation, currentUser }) {
                     )}
                   </td>
                   <td>
-                    <button className="btn btn-info" onClick={() => setViewingSale(sale)}>
+                    <button 
+                      className="btn btn-info" 
+                      onClick={() => setViewingSale(sale)}
+                    >
                       View Details
                     </button>
-                    {!isVoided && currentUser && (currentUser.role === 'manager' || currentUser.role === 'admin') && (
+                    {!isVoided && currentUser && 
+                     (currentUser.role === 'manager' || currentUser.role === 'admin') && (
                       <button 
                         className="btn btn-danger" 
                         onClick={() => handleVoidSale(sale.id)}

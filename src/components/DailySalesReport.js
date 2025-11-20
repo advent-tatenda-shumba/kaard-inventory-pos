@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getItem } from '../utils/storage';
 
 function DailySalesReport({ selectedLocation, currentUser }) {
   const [todaySales, setTodaySales] = useState([]);
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // ✅ ALL HOOKS MUST COME FIRST - Before any conditional returns
-  const loadDailySales = React.useCallback(() => {
-    if (!selectedLocation) return; // Safety check inside the callback
+  const loadDailySales = useCallback(() => {
+    if (!selectedLocation) return;
     
     const allSales = getItem('sales', []);
     const locationSales = allSales.filter(sale => {
@@ -21,7 +20,6 @@ function DailySalesReport({ selectedLocation, currentUser }) {
     loadDailySales();
   }, [loadDailySales]);
 
-  // ✅ NOW it's safe to do conditional returns (AFTER all hooks)
   if (!selectedLocation || !currentUser) {
     return (
       <div className="card" style={{padding: '2rem', textAlign: 'center'}}>

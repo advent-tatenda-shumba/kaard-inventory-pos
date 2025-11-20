@@ -4,7 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-function Dashboard({ selectedLocation, onNavigate }) {
+// Added currentUser to props
+function Dashboard({ selectedLocation, onNavigate, currentUser }) {
   const [stats, setStats] = useState({
     totalProducts: 0,
     lowStockCount: 0,
@@ -15,6 +16,9 @@ function Dashboard({ selectedLocation, onNavigate }) {
     categoryDistribution: []
   });
 
+  // Permission check
+  const showFinancials = selectedLocation && (currentUser?.role === 'admin' || currentUser?.role === 'manager');
+
   useEffect(() => {
     if (selectedLocation) {
         loadStats();
@@ -24,7 +28,6 @@ function Dashboard({ selectedLocation, onNavigate }) {
   const loadStats = () => {
     const inventory = getItem('inventory', []);
     const sales = getItem('sales', []);
-    
     const locationInventory = inventory.filter(item => item.location === selectedLocation);
     
     const today = new Date().toDateString();
@@ -32,7 +35,7 @@ function Dashboard({ selectedLocation, onNavigate }) {
       sale.location === selectedLocation && 
       new Date(sale.date).toDateString() === today
     );
-    
+
     const totalSalesValue = todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalProfitValue = todaySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
     const lowStockItems = locationInventory.filter(item => item.quantity <= (item.minStock || 5));
@@ -74,7 +77,6 @@ function Dashboard({ selectedLocation, onNavigate }) {
     });
   };
 
-  // Safe check for display title
   const displayLocation = selectedLocation ? selectedLocation.toUpperCase() : 'LOADING...';
 
   return (
@@ -88,14 +90,21 @@ function Dashboard({ selectedLocation, onNavigate }) {
           <h3>${stats.todaySales.toFixed(2)}</h3>
           <p>Today's Revenue</p>
         </div>
-        <div className="stat-card">
-          <h3>${stats.todayProfit.toFixed(2)}</h3>
-          <p>Today's Profit</p>
-        </div>
-        <div className="stat-card">
-          <h3>${stats.inventoryValue.toFixed(2)}</h3>
-          <p>Inventory Value (Cost)</p>
-        </div>
+        
+        {/* HIDDEN FROM CASHIERS */}
+        {showFinancials && (
+          <>
+            <div className="stat-card">
+              <h3>${stats.todayProfit.toFixed(2)}</h3>
+              <p>Today's Profit</p>
+            </div>
+            <div className="stat-card">
+              <h3>${stats.inventoryValue.toFixed(2)}</h3>
+              <p>Inventory Value (Cost)</p>
+            </div>
+          </>
+        )}
+
         <div className="stat-card warning" onClick={() => onNavigate('reports')}>
           <h3>{stats.lowStockCount}</h3>
           <p>Low Stock Items</p>

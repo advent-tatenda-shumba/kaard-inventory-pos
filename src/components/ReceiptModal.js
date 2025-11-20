@@ -2,7 +2,6 @@ import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 
 function ReceiptModal({ sale, onClose }) {
-  // 1. SAFETY CHECK: If no sale data exists, don't render anything
   if (!sale) return null;
 
   const handlePrint = () => {
@@ -28,7 +27,6 @@ function ReceiptModal({ sale, onClose }) {
             </div>
           )}
   
-          {/* 2. Hardcoded Name is safer for now */}
           <h2>KAARD STORES</h2>
           <p>{sale.location ? sale.location.toUpperCase() : 'STORE'}</p>
           <hr />
@@ -47,7 +45,6 @@ function ReceiptModal({ sale, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {/* 3. Added safety checks (|| 0) for numbers */}
               {sale.items.map((item, idx) => (
                 <tr key={idx}>
                   <td>{item.name}</td>
@@ -62,18 +59,15 @@ function ReceiptModal({ sale, onClose }) {
           <h3>TOTAL: ${(sale.total || 0).toFixed(2)}</h3>
   
           <div style={{textAlign: 'center', marginTop: '1rem'}}>
-            {/* QR Code points to a receipt URL */}
             <QRCodeCanvas value={`${window.location.origin}/receipt/${sale.id}`} size={128} />
             <p style={{fontSize: '0.8rem', marginTop: '0.5rem'}}>Scan for digital receipt</p>
           </div>
         </div>
 
-        {/* 4. ADDED THE MISSING BUTTONS HERE */}
         <div className="modal-actions no-print" style={{marginTop: '1.5rem', display: 'flex', gap: '1rem'}}>
             <button onClick={handlePrint} className="btn btn-primary" style={{flex: 1}}>Print Receipt</button>
             <button onClick={onClose} className="btn btn-secondary" style={{flex: 1}}>Close</button>
         </div>
-
       </div>
     </div>
   );

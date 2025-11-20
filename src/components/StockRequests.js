@@ -33,7 +33,6 @@ function StockRequests({ selectedLocation, currentUser }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
     const newRequest = {
       id: Date.now(),
       location: selectedLocation,
@@ -47,7 +46,7 @@ function StockRequests({ selectedLocation, currentUser }) {
       approvedDate: null,
       notes: ''
     };
-
+    
     const allRequests = getItem('stockRequests', []);
     setItem('stockRequests', [...allRequests, newRequest]);
     
@@ -72,7 +71,7 @@ function StockRequests({ selectedLocation, currentUser }) {
   const handleReject = (requestId) => {
     const notes = prompt('Reason for rejection:');
     if (notes === null) return;
-    
+
     const allRequests = getItem('stockRequests', []);
     const updated = allRequests.map(req => 
       req.id === requestId 
@@ -122,7 +121,7 @@ function StockRequests({ selectedLocation, currentUser }) {
                       <option key={item.id} value={item.name}>
                         {item.name} (Current: {item.quantity})
                       </option>
-                    ))
+                     ))
                   }
                 </select>
               </div>

@@ -1,20 +1,38 @@
 import React, { useState } from 'react';
-import { getItem } from '../utils/storage';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 function Login({ onLogin }) {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const users = getItem('users', []);
-    const user = users.find(u => u.username === username && u.password === password);
-    
-    if (user) {
-      onLogin(user);
-    } else {
-      setError('Invalid credentials. Please try again.');
+    setError('');
+    setLoading(true);
+
+    try {
+      // 1. Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // 2. Pass user info up to App.js
+      // Note: We will fetch the user's "Role" (admin/cashier) in App.js later
+      onLogin({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        // Temporary default until we connect the Users collection
+        role: email.includes('admin') ? 'admin' : 'cashier', 
+        shop: 'all' 
+      });
+      
+    } catch (err) {
+      console.error(err);
+      setError('Invalid email or password.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -27,46 +45,35 @@ function Login({ onLogin }) {
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label>Email</label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g., admin"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@kaard.com"
               autoFocus
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label>Password</label>
             <input
-              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="e.g., admin123"
+              placeholder="******"
               required
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-            Login
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <div className="login-footer">
-          <p>Login Credentials:</p>
-          <ul>
-            <li><b>Admin:</b> admin / ******</li>
-            <li><b>Manager:</b> manager / ******</li>
-            <li><b>Cashier:</b> cashier / ******</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
 }
 
-export default Login; 
+export default Login;

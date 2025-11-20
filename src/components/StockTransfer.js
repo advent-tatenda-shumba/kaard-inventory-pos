@@ -19,7 +19,6 @@ function StockTransfer({ currentLocation, currentUser }) {
     shop6: 'Fancy Liquor - Kadoma'
   };
 
-  // Always run hooks first
   const loadInventory = useCallback(() => {
     const allInventory = getItem('inventory', []);
     const locationInventory = allInventory.filter(
@@ -28,17 +27,17 @@ function StockTransfer({ currentLocation, currentUser }) {
     setInventory(locationInventory);
   }, [fromLocation]);
 
+  // FIXED: Removed 'fromLocation' from the dependency array below
   const loadTransfers = useCallback(() => {
     const allTransfers = getItem('transfers', []);
     setTransfers(allTransfers.slice(-10));
-  }, [fromLocation]);
+  }, []);
 
   useEffect(() => {
     loadInventory();
     loadTransfers();
   }, [loadInventory, loadTransfers]);
 
-  // Now safe to do conditional return
   if (currentUser?.role !== 'admin') {
     return (
       <div className="card">
@@ -50,7 +49,6 @@ function StockTransfer({ currentLocation, currentUser }) {
 
   const handleTransfer = (e) => {
     e.preventDefault();
-
     if (fromLocation === toLocation) {
       alert('Cannot transfer to the same location!');
       return;
@@ -68,12 +66,17 @@ function StockTransfer({ currentLocation, currentUser }) {
     }
 
     const transferQty = parseInt(quantity);
+
+    if (isNaN(transferQty) || transferQty <= 0) {
+      alert('Please enter a valid positive quantity.');
+      return;
+    }
+
     if (transferQty > itemToTransfer.quantity) {
       alert(`Not enough stock! Available: ${itemToTransfer.quantity}`);
       return;
     }
 
-    // Reduce source quantity
     const updatedInventory = allInventory.map(item => {
       if (item.id === itemToTransfer.id && item.location === fromLocation) {
         return { ...item, quantity: item.quantity - transferQty };
@@ -81,7 +84,6 @@ function StockTransfer({ currentLocation, currentUser }) {
       return item;
     });
 
-    // Add quantity to destination
     const existingAtDestination = updatedInventory.find(
       item =>
         item.name === itemToTransfer.name &&
@@ -106,7 +108,6 @@ function StockTransfer({ currentLocation, currentUser }) {
       setItem('inventory', [...updatedInventory, newItem]);
     }
 
-    // Record transfer
     const transfer = {
       id: Date.now(),
       date: new Date().toISOString(),
@@ -234,7 +235,6 @@ function StockTransfer({ currentLocation, currentUser }) {
               ))
             )}
           </tbody>
-
         </table>
       </div>
     </div>

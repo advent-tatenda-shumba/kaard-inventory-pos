@@ -15,7 +15,9 @@ function POS({ selectedLocation, currentUser }) {
 
   const loadInventory = () => {
     const allInventory = getItem('inventory', []);
-    const locationInventory = allInventory.filter(item => item.location === selectedLocation && item.quantity > 0);
+    const locationInventory = allInventory.filter(
+      item => item.location === selectedLocation && item.quantity > 0
+    );
     setInventory(locationInventory);
   };
 
@@ -25,7 +27,9 @@ function POS({ selectedLocation, currentUser }) {
     if (existingItem) {
       if (existingItem.cartQuantity < product.quantity) {
         setCart(cart.map(item =>
-          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + 1 } : item
+          item.id === product.id 
+            ? { ...item, cartQuantity: item.cartQuantity + 1 } 
+            : item
         ));
       }
     } else {
@@ -35,6 +39,7 @@ function POS({ selectedLocation, currentUser }) {
 
   const updateCartQuantity = (id, newQuantity) => {
     const product = inventory.find(p => p.id === id);
+    
     if (newQuantity <= 0) {
       setCart(cart.filter(item => item.id !== id));
     } else if (product && newQuantity <= product.quantity) {
@@ -66,13 +71,33 @@ function POS({ selectedLocation, currentUser }) {
       return;
     }
 
-    // Calculate totals BEFORE creating sale object
+    // --- FIX 2B: VALIDATE INVENTORY BEFORE SALE ---
+    // Get the latest inventory state
+    const currentInventory = getItem('inventory', []);
+
+    // Check every item in the cart
+    for (const cartItem of cart) {
+      const inventoryItem = currentInventory.find(i => i.id === cartItem.id && i.location === selectedLocation);
+      
+      if (!inventoryItem) {
+        alert(`Error: The product "${cartItem.name}" has been removed from the system. Please remove it from the cart.`);
+        loadInventory(); // Refresh UI
+        return;
+      }
+
+      if (inventoryItem.quantity < cartItem.cartQuantity) {
+        alert(`Error: Not enough stock for "${cartItem.name}". Available: ${inventoryItem.quantity}`);
+        loadInventory(); // Refresh UI
+        return;
+      }
+    }
+    // ----------------------------------------------
+
     const total = calculateTotal();
     const profit = calculateProfit();
 
     // Update inventory
-    const allInventory = getItem('inventory', []);
-    const updatedInventory = allInventory.map(item => {
+    const updatedInventory = currentInventory.map(item => {
       const cartItem = cart.find(c => c.id === item.id && c.location === selectedLocation);
       if (cartItem) {
         return { ...item, quantity: item.quantity - cartItem.cartQuantity };
@@ -82,22 +107,19 @@ function POS({ selectedLocation, currentUser }) {
 
     setItem('inventory', updatedInventory);
 
-    // Create sale object with guaranteed numbers
     const sale = {
       id: Date.now(),
       location: selectedLocation,
       items: cart,
-      total: total || 0,  // Ensure it's never null/undefined
-      profit: profit || 0, // Ensure it's never null/undefined
+      total: total || 0,
+      profit: profit || 0,
       date: new Date().toISOString(),
       cashier: currentUser.username
     };
 
-    // Save sale
     const sales = getItem('sales', []);
     setItem('sales', [...sales, sale]);
 
-    // Show receipt and clear cart
     setLastSale(sale);
     setShowReceipt(true);
     setCart([]);
@@ -118,7 +140,13 @@ function POS({ selectedLocation, currentUser }) {
           placeholder="Search products..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ width: '100%', padding: '0.75rem', marginBottom: '1rem', border: '1px solid #dee2e6', borderRadius: '4px' }}
+          style={{ 
+            width: '100%', 
+            padding: '0.75rem', 
+            marginBottom: '1rem', 
+            border: '1px solid #dee2e6', 
+            borderRadius: '4px' 
+          }}
         />
 
         <div className="products-grid">
@@ -150,14 +178,23 @@ function POS({ selectedLocation, currentUser }) {
                   <p>${(item.sellPrice || 0).toFixed(2)} each</p>
                 </div>
                 <div className="cart-item-controls">
-                  <button onClick={() => updateCartQuantity(item.id, item.cartQuantity - 1)}>-</button>
+                  <button onClick={() => updateCartQuantity(item.id, item.cartQuantity - 1)}>
+                    -
+                  </button>
                   <input
                     type="number"
                     value={item.cartQuantity}
                     onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value) || 0)}
                   />
-                  <button onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}>+</button>
-                  <button onClick={() => removeFromCart(item.id)} style={{backgroundColor: '#dc3545'}}>×</button>
+                  <button onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}>
+                    +
+                  </button>
+                  <button 
+                    onClick={() => removeFromCart(item.id)} 
+                    style={{backgroundColor: '#dc3545'}}
+                  >
+                    ×
+                  </button>
                 </div>
               </div>
             ))
@@ -172,8 +209,12 @@ function POS({ selectedLocation, currentUser }) {
         </div>
 
         <div className="cart-actions">
-          <button className="btn btn-danger" onClick={() => setCart([])}>Clear</button>
-          <button className="btn btn-success" onClick={handleCheckout}>Checkout</button>
+          <button className="btn btn-danger" onClick={() => setCart([])}>
+            Clear
+          </button>
+          <button className="btn btn-success" onClick={handleCheckout}>
+            Checkout
+          </button>
         </div>
       </div>
       
