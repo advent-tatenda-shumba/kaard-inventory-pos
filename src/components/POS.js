@@ -6,7 +6,6 @@ function POS({ selectedLocation, currentUser }) {
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
 
@@ -62,48 +61,48 @@ function POS({ selectedLocation, currentUser }) {
   };
 
   const handleCheckout = () => {
-  if (cart.length === 0) {
-    alert('Cart is empty!');
-    return;
-  }
-
-  // Calculate totals BEFORE creating sale object
-  const total = calculateTotal();
-  const profit = calculateProfit();
-
-  // Update inventory
-  const allInventory = getItem('inventory', []);
-  const updatedInventory = allInventory.map(item => {
-    const cartItem = cart.find(c => c.id === item.id && c.location === selectedLocation);
-    if (cartItem) {
-      return { ...item, quantity: item.quantity - cartItem.cartQuantity };
+    if (cart.length === 0) {
+      alert('Cart is empty!');
+      return;
     }
-    return item;
-  });
 
-  setItem('inventory', updatedInventory);
+    // Calculate totals BEFORE creating sale object
+    const total = calculateTotal();
+    const profit = calculateProfit();
 
-  // Create sale object with guaranteed numbers
-  const sale = {
-    id: Date.now(),
-    location: selectedLocation,
-    items: cart,
-    total: total || 0,  // Ensure it's never null/undefined
-    profit: profit || 0, // Ensure it's never null/undefined
-    date: new Date().toISOString(),
-    cashier: currentUser.username
+    // Update inventory
+    const allInventory = getItem('inventory', []);
+    const updatedInventory = allInventory.map(item => {
+      const cartItem = cart.find(c => c.id === item.id && c.location === selectedLocation);
+      if (cartItem) {
+        return { ...item, quantity: item.quantity - cartItem.cartQuantity };
+      }
+      return item;
+    });
+
+    setItem('inventory', updatedInventory);
+
+    // Create sale object with guaranteed numbers
+    const sale = {
+      id: Date.now(),
+      location: selectedLocation,
+      items: cart,
+      total: total || 0,  // Ensure it's never null/undefined
+      profit: profit || 0, // Ensure it's never null/undefined
+      date: new Date().toISOString(),
+      cashier: currentUser.username
+    };
+
+    // Save sale
+    const sales = getItem('sales', []);
+    setItem('sales', [...sales, sale]);
+
+    // Show receipt and clear cart
+    setLastSale(sale);
+    setShowReceipt(true);
+    setCart([]);
+    loadInventory();
   };
-
-  // Save sale
-  const sales = getItem('sales', []);
-  setItem('sales', [...sales, sale]);
-
-  // Show receipt and clear cart
-  setLastSale(sale);
-  setShowReceipt(true);
-  setCart([]);
-  loadInventory();
-};
 
   const filteredInventory = inventory.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -177,9 +176,10 @@ function POS({ selectedLocation, currentUser }) {
           <button className="btn btn-success" onClick={handleCheckout}>Checkout</button>
         </div>
       </div>
+      
       {showReceipt && lastSale && (
-  <ReceiptModal sale={lastSale} onClose={() => setShowReceipt(false)} />
-)}
+        <ReceiptModal sale={lastSale} onClose={() => setShowReceipt(false)} />
+      )}
     </div>
   );
 }

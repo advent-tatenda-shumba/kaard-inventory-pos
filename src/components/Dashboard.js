@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getItem } from '../utils/storage';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, Legend } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -16,7 +16,9 @@ function Dashboard({ selectedLocation, onNavigate }) {
   });
 
   useEffect(() => {
-    loadStats();
+    if (selectedLocation) {
+        loadStats();
+    }
   }, [selectedLocation]);
 
   const loadStats = () => {
@@ -31,9 +33,9 @@ function Dashboard({ selectedLocation, onNavigate }) {
       new Date(sale.date).toDateString() === today
     );
     
-    const totalSalesValue = todaySales.reduce((sum, sale) => sum + sale.total, 0);
+    const totalSalesValue = todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalProfitValue = todaySales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
-    const lowStockItems = locationInventory.filter(item => item.quantity <= item.minStock);
+    const lowStockItems = locationInventory.filter(item => item.quantity <= (item.minStock || 5));
     const totalValue = locationInventory.reduce((sum, item) => sum + (item.quantity * (item.costPrice || 0)), 0);
 
     const productSales = {};
@@ -52,8 +54,9 @@ function Dashboard({ selectedLocation, onNavigate }) {
       .map(([name, count]) => ({ name, count }));
 
     const categoryCounts = locationInventory.reduce((acc, item) => {
-      if (!acc[item.category]) acc[item.category] = 0;
-      acc[item.category] += 1;
+      const cat = item.category || 'Uncategorized';
+      if (!acc[cat]) acc[cat] = 0;
+      acc[cat] += 1;
       return acc;
     }, {});
 
@@ -71,10 +74,13 @@ function Dashboard({ selectedLocation, onNavigate }) {
     });
   };
 
+  // Safe check for display title
+  const displayLocation = selectedLocation ? selectedLocation.toUpperCase() : 'LOADING...';
+
   return (
     <div className="dashboard">
       <div className="page-header">
-        <h1>Dashboard - {selectedLocation.toUpperCase()}</h1>
+        <h1>Dashboard - {displayLocation}</h1>
       </div>
 
       <div className="stats-grid">
@@ -100,20 +106,21 @@ function Dashboard({ selectedLocation, onNavigate }) {
         </div>
       </div>
 
-      {/* <div className="charts-grid">
+      <div className="charts-grid">
         <div className="card">
           <h2>Top 5 Products (Units Sold)</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={stats.topProducts} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={120} />
+              <YAxis type="category" dataKey="name" width={100} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="count" fill="var(--primary-color)" name="Units Sold" />
+              <Bar dataKey="count" fill="#2a7a3e" name="Units Sold" />
             </BarChart>
           </ResponsiveContainer>
         </div>
+
         <div className="card">
           <h2>Product Categories</h2>
           <ResponsiveContainer width="100%" height={300}>
@@ -137,7 +144,7 @@ function Dashboard({ selectedLocation, onNavigate }) {
             </PieChart>
           </ResponsiveContainer>
         </div>
-      </div> */}
+      </div>
     </div>
   );
 }

@@ -6,14 +6,24 @@ const categories = [
   'Dish Washing', 'Soaps & Detergents', 'Perishables', 'Non-Perishables'
 ];
 
-function Inventory({ selectedLocation, userRole }) {
+function Inventory({ selectedLocation, userRole, currentUser }) {
+  // ✅ Move canSeeCostPrice INSIDE the component
+  const canSeeCostPrice = userRole === 'admin' || userRole === 'manager';
+  
   const [inventory, setInventory] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({
-    name: '', barcode: '', category: '', costPrice: '', sellPrice: '', quantity: '', minStock: '', unit: 'pieces'
+    name: '', 
+    barcode: '', 
+    category: '', 
+    costPrice: '', 
+    sellPrice: '', 
+    quantity: '', 
+    minStock: '', 
+    unit: 'pieces'
   });
 
   useEffect(() => {
@@ -116,43 +126,39 @@ function Inventory({ selectedLocation, userRole }) {
 
       <div className="table-container">
         <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Barcode</th>
-              <th>Category</th>
-              <th>Cost Price</th>
-              <th>Sell Price</th>
-              <th>Quantity</th>
-              <th>Unit</th>
-              <th>Status</th>
-              {canEdit && <th>Actions</th>}
-            </tr>
-          </thead>
+           <thead>
+  <tr>
+    <th>Name</th>
+    <th>Barcode</th>
+    {canSeeCostPrice && <th>Cost Price</th>}
+    <th>Sell Price</th>
+    <th>Quantity</th>
+    {userRole === 'admin' && <th>Actions</th>}
+  </tr>
+</thead>
           <tbody>
-            {filteredInventory.map(item => (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>{item.barcode}</td>
-                <td>{item.category}</td>
-                <td>${Number(item.costPrice || 0).toFixed(2)}</td>
-                <td>${Number(item.sellPrice || 0).toFixed(2)}</td>
-                <td>{item.quantity}</td>
-                <td>{item.unit}</td>
-                <td>
-                  <span className={`badge ${item.quantity <= item.minStock ? 'danger' : 'success'}`}>
-                    {item.quantity <= item.minStock ? 'Low Stock' : 'In Stock'}
-                  </span>
-                </td>
-                {canEdit && (
-                  <td>
-                    <button className="btn btn-info" onClick={() => handleEdit(item)}>Edit</button>
-                    <button className="btn btn-danger" onClick={() => handleDelete(item.id)} style={{marginLeft: '0.5rem'}}>Delete</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
+  {inventory.map(item => (
+    <tr key={item.id}>
+      <td>{item.name}</td>
+      <td>{item.barcode || 'N/A'}</td>
+      {canSeeCostPrice && <td>${(item.costPrice || 0).toFixed(2)}</td>}
+      <td>${(item.sellPrice || 0).toFixed(2)}</td>
+      <td style={{ 
+        color: item.quantity < (item.lowStockThreshold || 10) ? 'var(--danger-color)' : 'inherit',
+        fontWeight: item.quantity < (item.lowStockThreshold || 10) ? 'bold' : 'normal'
+      }}>
+        {item.quantity}
+        {item.quantity < (item.lowStockThreshold || 10) && ' ⚠️'}
+      </td>
+      {userRole === 'admin' && (
+        <td>
+          <button className="btn btn-primary" onClick={() => handleEdit(item)}>Edit</button>
+          <button className="btn btn-danger" onClick={() => handleDelete(item.id)}>Delete</button>
+        </td>
+      )}
+    </tr>
+  ))}
+</tbody>
         </table>
       </div>
 

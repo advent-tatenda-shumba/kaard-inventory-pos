@@ -549,3 +549,87 @@ tbody tr:hover {
   .receipt-modal { position: absolute; left: 0; top: 0; }
   .modal-actions { display: none !important; }
 }
+
+/* Print Styles */
+@media print {
+  .no-print, .navbar, .nav-links, .logout-btn, .btn {
+    display: none !important;
+  }
+  
+  body {
+    background: white;
+  }
+  
+  .report-container {
+    width: 100%;
+    max-width: none;
+  }
+  
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Voided Sale Styling */
+tr[style*="line-through"] {
+  opacity: 0.6;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.status-active {
+  background-color: #28a745;
+  color: white;
+}
+
+.status-voided {
+  background-color: #dc3545;
+  color: white;
+}
+
+.status-pending {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.status-approved {
+  background-color: #28a745;
+  color: white;
+}
+
+.status-rejected {
+  background-color: #dc3545;
+  color: white;
+}

@@ -8,24 +8,52 @@ import POS from './components/POS';
 import Sales from './components/Sales';
 import StockTransfer from './components/StockTransfer';
 import Reports from './components/Reports';
+import ReceiptViewer from './components/ReceiptViewer';
+import StockRequests from './components/StockRequests';
+import DailySalesReport from './components/DailySalesReport';
 
 const LOCATIONS = {
-  shop1: 'Shop 1 - Grocery & Warehouse',
-  shop2: 'Shop 2 - Grocery',
-  shop3: 'Shop 3 - Liquor Store'
+  warehouse: 'Warehouse (Admin Only)',
+  shop1: 'Shop 1 - Main Grocery',
+  shop2: 'Kaard Shop - GTS',
+  shop3: 'Kaard Supermarket - Quickstop',
+  shop4: 'Kaard Liquor - GTS',
+  shop5: 'Kaard Liquor - Masasa',
+  shop6: 'Fancy Liquor - Kadoma'
 };
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedLocation, setSelectedLocation] = useState('shop1');
+  const [viewingReceiptId, setViewingReceiptId] = useState(null);
 
   useEffect(() => {
     const user = getItem('pos_user', null);
     if (user) {
       setCurrentUser(user);
     }
+
+    // Check if URL has receipt ID (for QR code scanning)
+    const path = window.location.pathname;
+    const match = path.match(/\/receipt\/(\d+)/);
+    if (match) {
+      setViewingReceiptId(match[1]);
+    }
   }, []);
+
+  // --- THIS IS THE FIXED USEEFFECT ---
+  useEffect(() => {
+    // We MUST check if currentUser exists before checking their shop
+    if (currentUser) {
+      if (currentUser.shop !== 'all') {
+        setSelectedLocation(currentUser.shop);
+      } else if (currentUser.role === 'admin') {
+        setSelectedLocation('warehouse'); // Admin starts at warehouse
+      }
+    }
+  }, [currentUser]);
+  // ----------------------------------
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -42,6 +70,11 @@ function App() {
     setCurrentPage(page);
   };
 
+  // If viewing a receipt from QR code
+  if (viewingReceiptId) {
+    return <ReceiptViewer receiptId={viewingReceiptId} />;
+  }
+
   const renderPage = () => {
     const props = { 
       selectedLocation, 
@@ -49,6 +82,7 @@ function App() {
       currentUser,
       onNavigate: handleNavigate 
     };
+
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard {...props} />;
@@ -58,8 +92,12 @@ function App() {
         return <POS {...props} />;
       case 'sales':
         return <Sales {...props} />;
+      case 'dailyreport':
+        return <DailySalesReport {...props} />;
       case 'transfer':
-        return <StockTransfer currentLocation={selectedLocation} />;
+        return <StockTransfer {...props} currentLocation={selectedLocation} />;
+      case 'requests':
+        return <StockRequests {...props} />;
       case 'reports':
         return <Reports {...props} />;
       default:
@@ -77,14 +115,17 @@ function App() {
         <div className="nav-left">
           <h2 className="logo-text">Kaard Inventory & POS</h2>
           <select 
-            value={selectedLocation} 
-            onChange={(e) => setSelectedLocation(e.target.value)}
-            className="location-select"
-            aria-label="Select Location"
-          >
-            {Object.entries(LOCATIONS).map(([key, value]) => (
-              <option key={key} value={key}>{value}</option>
-            ))}
+              value={selectedLocation} 
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="location-select"
+                disabled={currentUser?.shop !== 'all'}
+              >
+                {Object.entries(LOCATIONS)
+                  .filter(([key]) => currentUser?.role === 'admin' || key !== 'warehouse')
+                  .map(([key, value]) => (
+                    <option key={key} value={key}>{value}</option>
+                  ))
+                }
           </select>
         </div>
 
@@ -93,12 +134,40 @@ function App() {
           <button className={currentPage === 'inventory' ? 'active' : ''} onClick={() => setCurrentPage('inventory')}>Inventory</button>
           <button className={currentPage === 'pos' ? 'active' : ''} onClick={() => setCurrentPage('pos')}>POS</button>
           <button className={currentPage === 'sales' ? 'active' : ''} onClick={() => setCurrentPage('sales')}>Sales</button>
-          {currentUser?.role !== 'cashier' && (
-            <>
-              <button className={currentPage === 'transfer' ? 'active' : ''} onClick={() => setCurrentPage('transfer')}>Transfer</button>
-              <button className={currentPage === 'reports' ? 'active' : ''} onClick={() => setCurrentPage('reports')}>Reports</button>
-            </>
-          )}
+            {/* Daily Report for Cashiers */}
+            {currentUser?.role === 'cashier' && (
+              <button 
+                className={currentPage === 'dailyreport' ? 'active' : ''} 
+                onClick={() => setCurrentPage('dailyreport')}
+              >
+                Daily Report
+              </button>
+            )}
+
+            {currentUser?.role !== 'cashier' && (
+              <>
+                <button 
+                  className={currentPage === 'transfer' ? 'active' : ''} 
+                  onClick={() => setCurrentPage('transfer')}
+                >
+                  Transfer
+                </button>
+
+                <button 
+                  className={currentPage === 'requests' ? 'active' : ''} 
+                  onClick={() => setCurrentPage('requests')}
+                >
+                  Stock Requests
+                </button>
+
+                <button 
+                  className={currentPage === 'reports' ? 'active' : ''} 
+                  onClick={() => setCurrentPage('reports')}
+                >
+                  Reports
+                </button>
+              </>
+            )}
         </nav>
 
         <div className="nav-user">

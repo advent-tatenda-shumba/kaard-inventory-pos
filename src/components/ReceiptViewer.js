@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { getItem } from '../utils/storage';
 
-function ReceiptViewer() {
-  const { receiptId } = useParams();
+function ReceiptViewer({ receiptId }) {
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
 

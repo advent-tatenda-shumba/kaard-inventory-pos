@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getItem } from '../utils/storage';
 import ReceiptModal from './ReceiptModal';
+import { getItem, setItem } from '../utils/storage';
 
-function Sales({ selectedLocation }) {
+function Sales({ selectedLocation, currentUser }) {
   const [sales, setSales] = useState([]);
   const [dateFilter, setDateFilter] = useState('today');
   const [viewingSale, setViewingSale] = useState(null);
@@ -13,7 +13,20 @@ function Sales({ selectedLocation }) {
 
   const loadSales = () => {
     const allSales = getItem('sales', []);
-    const locationSales = allSales.filter(sale => sale.location === selectedLocation);
+
+    // Clean up any sales with null/undefined totals (one-time fix)
+    const cleanedSales = allSales.map(sale => ({
+      ...sale,
+      total: sale.total || 0,
+      profit: sale.profit || 0
+    }));
+
+    // Save cleaned data back (this fixes existing bad data)
+    if (JSON.stringify(allSales) !== JSON.stringify(cleanedSales)) {
+      setItem('sales', cleanedSales);
+    }
+
+    const locationSales = cleanedSales.filter(sale => sale.location === selectedLocation);
 
     const filtered = locationSales.filter(sale => {
       const saleDate = new Date(sale.date);
@@ -33,8 +46,56 @@ function Sales({ selectedLocation }) {
     setSales(filtered.sort((a, b) => new Date(b.date) - new Date(a.date)));
   };
 
-  const totalSales = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
-const totalProfit = sales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+  // This function MUST be inside the component to access currentUser
+  const handleVoidSale = (saleId) => {
+    // Safety check for currentUser
+    if (!currentUser) {
+        alert('User not identified');
+        return;
+    }
+
+    if (currentUser.role !== 'manager' && currentUser.role !== 'admin') {
+      alert('Only managers can void sales!');
+      return;
+    }
+
+    const reason = prompt('Enter reason for voiding this sale:');
+    if (!reason) return;
+
+    const allSales = getItem('sales', []);
+    const sale = allSales.find(s => s.id === saleId);
+
+    if (!sale) {
+      alert('Sale not found!');
+      return;
+    }
+
+    // Restore inventory
+    const allInventory = getItem('inventory', []);
+    const updatedInventory = allInventory.map(item => {
+      const saleItem = sale.items.find(si => si.id === item.id && si.location === selectedLocation);
+      if (saleItem) {
+        return { ...item, quantity: item.quantity + saleItem.cartQuantity };
+      }
+      return item;
+    });
+    setItem('inventory', updatedInventory);
+
+    // Mark sale as voided
+    const updatedSales = allSales.map(s => 
+      s.id === saleId 
+        ? { ...s, voided: true, voidedBy: currentUser.username, voidReason: reason, voidDate: new Date().toISOString() }
+        : s
+    );
+    setItem('sales', updatedSales);
+
+    alert('Sale voided successfully. Inventory restored.');
+    loadSales();
+  };
+
+  // Updated total calculations to exclude voided sales
+  const totalSales = sales.filter(s => !s.voided).reduce((sum, sale) => sum + (sale.total || 0), 0);
+  const totalProfit = sales.filter(s => !s.voided).reduce((sum, sale) => sum + (sale.profit || 0), 0);
 
   return (
     <div>
@@ -73,14 +134,16 @@ const totalProfit = sales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
               <th>Total</th>
               <th>Profit</th>
               <th>Cashier</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {sales.map(sale => {
               const date = new Date(sale.date);
+              const isVoided = sale.voided;
               return (
-                <tr key={sale.id}>
+                <tr key={sale.id} style={isVoided ? {backgroundColor: '#ffe6e6', textDecoration: 'line-through'} : {}}>
                   <td>{date.toLocaleDateString()}</td>
                   <td>{date.toLocaleTimeString()}</td>
                   <td>{sale.items.reduce((sum, item) => sum + item.cartQuantity, 0)}</td>
@@ -90,9 +153,25 @@ const totalProfit = sales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
                   </td>
                   <td>{sale.cashier}</td>
                   <td>
+                    {isVoided ? (
+                      <span style={{color: '#dc3545', fontWeight: 'bold'}}>VOIDED</span>
+                    ) : (
+                      <span style={{color: '#28a745', fontWeight: 'bold'}}>ACTIVE</span>
+                    )}
+                  </td>
+                  <td>
                     <button className="btn btn-info" onClick={() => setViewingSale(sale)}>
                       View Details
                     </button>
+                    {!isVoided && currentUser && (currentUser.role === 'manager' || currentUser.role === 'admin') && (
+                      <button 
+                        className="btn btn-danger" 
+                        onClick={() => handleVoidSale(sale.id)}
+                        style={{marginLeft: '0.5rem'}}
+                      >
+                        Void
+                      </button>
+                    )}
                   </td>
                 </tr>
               );

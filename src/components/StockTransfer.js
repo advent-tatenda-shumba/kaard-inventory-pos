@@ -1,127 +1,241 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getItem, setItem } from '../utils/storage';
 
-function StockTransfer({ currentLocation }) {
+function StockTransfer({ currentLocation, currentUser }) {
   const [inventory, setInventory] = useState([]);
-  const [allInventory, setAllInventory] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState('');
+  const [fromLocation, setFromLocation] = useState('warehouse');
+  const [toLocation, setToLocation] = useState('shop1');
+  const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [destination, setDestination] = useState('');
+  const [transfers, setTransfers] = useState([]);
+
+  const locations = {
+    warehouse: 'Warehouse',
+    shop1: 'Shop 1 - Main Grocery',
+    shop2: 'Kaard Shop - GTS',
+    shop3: 'Kaard Supermarket - Quickstop',
+    shop4: 'Kaard Liquor - GTS',
+    shop5: 'Kaard Liquor - Masasa',
+    shop6: 'Fancy Liquor - Kadoma'
+  };
+
+  // Always run hooks first
+  const loadInventory = useCallback(() => {
+    const allInventory = getItem('inventory', []);
+    const locationInventory = allInventory.filter(
+      item => item.location === fromLocation
+    );
+    setInventory(locationInventory);
+  }, [fromLocation]);
+
+  const loadTransfers = useCallback(() => {
+    const allTransfers = getItem('transfers', []);
+    setTransfers(allTransfers.slice(-10));
+  }, [fromLocation]);
 
   useEffect(() => {
     loadInventory();
-  }, [currentLocation]);
+    loadTransfers();
+  }, [loadInventory, loadTransfers]);
 
-  const loadInventory = () => {
-    const storedInventory = getItem('inventory', []);
-    setAllInventory(storedInventory);
-    const locationInventory = storedInventory.filter(item => item.location === currentLocation);
-    setInventory(locationInventory);
-  };
+  // Now safe to do conditional return
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="card">
+        <h2>Access Denied</h2>
+        <p>Only administrators can transfer stock between locations.</p>
+      </div>
+    );
+  }
 
   const handleTransfer = (e) => {
     e.preventDefault();
-    
-    const transferQuantity = parseInt(quantity);
-    if (!selectedProduct || !transferQuantity || !destination) {
-      alert('Please fill all fields and ensure quantity is a valid number.');
+
+    if (fromLocation === toLocation) {
+      alert('Cannot transfer to the same location!');
       return;
     }
 
-    const sourceProduct = allInventory.find(item => 
-      item.id === parseInt(selectedProduct) && item.location === currentLocation
+    const allInventory = getItem('inventory', []);
+    const itemToTransfer = allInventory.find(item =>
+      item.id === parseInt(selectedItem) &&
+      item.location === fromLocation
     );
-    
-    if (!sourceProduct) {
-      alert('Product not found at the source location.');
+
+    if (!itemToTransfer) {
+      alert('Item not found!');
       return;
     }
 
-    if (sourceProduct.quantity < transferQuantity) {
-      alert(`Insufficient stock. Only ${sourceProduct.quantity} units available.`);
+    const transferQty = parseInt(quantity);
+    if (transferQty > itemToTransfer.quantity) {
+      alert(`Not enough stock! Available: ${itemToTransfer.quantity}`);
       return;
     }
 
-    let destinationProductExists = false;
+    // Reduce source quantity
     const updatedInventory = allInventory.map(item => {
-      // Decrease stock from source
-      if (item.id === sourceProduct.id && item.location === currentLocation) {
-        return { ...item, quantity: item.quantity - transferQuantity };
-      }
-      // Increase stock at destination
-      if (item.id === sourceProduct.id && item.location === destination) {
-        destinationProductExists = true;
-        return { ...item, quantity: item.quantity + transferQuantity };
+      if (item.id === itemToTransfer.id && item.location === fromLocation) {
+        return { ...item, quantity: item.quantity - transferQty };
       }
       return item;
     });
 
-    // If product doesn't exist at destination, create it
-    if (!destinationProductExists) {
-      const { id, name, barcode, category, costPrice, sellPrice, minStock, unit } = sourceProduct;
-      updatedInventory.push({
-        id, name, barcode, category, costPrice, sellPrice, minStock, unit,
-        location: destination,
-        quantity: transferQuantity
+    // Add quantity to destination
+    const existingAtDestination = updatedInventory.find(
+      item =>
+        item.name === itemToTransfer.name &&
+        item.location === toLocation
+    );
+
+    if (existingAtDestination) {
+      const finalInventory = updatedInventory.map(item => {
+        if (item.id === existingAtDestination.id) {
+          return { ...item, quantity: item.quantity + transferQty };
+        }
+        return item;
       });
+      setItem('inventory', finalInventory);
+    } else {
+      const newItem = {
+        ...itemToTransfer,
+        id: Date.now(),
+        location: toLocation,
+        quantity: transferQty
+      };
+      setItem('inventory', [...updatedInventory, newItem]);
     }
 
-    setItem('inventory', updatedInventory);
-    
-    alert(`Transferred ${quantity} units of ${sourceProduct.name} to ${destination}`);
-    setSelectedProduct('');
+    // Record transfer
+    const transfer = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      from: fromLocation,
+      to: toLocation,
+      itemName: itemToTransfer.name,
+      quantity: transferQty,
+      transferredBy: currentUser.username
+    };
+
+    const allTransfers = getItem('transfers', []);
+    setItem('transfers', [...allTransfers, transfer]);
+
+    alert(
+      `Successfully transferred ${transferQty} units of ${itemToTransfer.name} 
+       from ${locations[fromLocation]} to ${locations[toLocation]}`
+    );
+
+    setSelectedItem('');
     setQuantity('');
-    setDestination('');
     loadInventory();
+    loadTransfers();
   };
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Stock Transfer</h1>
-      </div>
+      <h1>Stock Transfer (Admin Only)</h1>
 
       <div className="card">
-        <h2>Transfer from {currentLocation.toUpperCase()}</h2>
-        <div>
+        <h2>Transfer Stock</h2>
+        <form onSubmit={handleTransfer}>
+
           <div className="form-group">
-            <label>Select Product</label>
-            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} required>
-              <option value="">Choose product...</option>
+            <label>From Location:</label>
+            <select
+              value={fromLocation}
+              onChange={(e) => setFromLocation(e.target.value)}
+              required
+            >
+              {Object.entries(locations).map(([key, value]) => (
+                <option key={key} value={key}>{value}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>To Location:</label>
+            <select
+              value={toLocation}
+              onChange={(e) => setToLocation(e.target.value)}
+              required
+            >
+              {Object.entries(locations)
+                .filter(([key]) => key !== fromLocation)
+                .map(([key, value]) => (
+                  <option key={key} value={key}>{value}</option>
+                ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Select Item:</label>
+            <select
+              value={selectedItem}
+              onChange={(e) => setSelectedItem(e.target.value)}
+              required
+            >
+              <option value="">Choose an item...</option>
               {inventory.map(item => (
                 <option key={item.id} value={item.id}>
-                  {item.name} (Stock: {item.quantity})
+                  {item.name} (Available: {item.quantity})
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label>Quantity</label>
+            <label>Quantity to Transfer:</label>
             <input
               type="number"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              placeholder="Enter quantity"
               min="1"
               required
             />
           </div>
 
-          <div className="form-group">
-            <label>Destination</label>
-            <select value={destination} onChange={(e) => setDestination(e.target.value)} required>
-              <option value="">Choose destination...</option>
-              {currentLocation !== 'shop1' && <option value="shop1">Shop 1 - Grocery & Warehouse</option>}
-              {currentLocation !== 'shop2' && <option value="shop2">Shop 2 - Grocery</option>}
-              {currentLocation !== 'shop3' && <option value="shop3">Shop 3 - Liquor Store</option>}
-            </select>
-          </div>
-
-          <button className="btn btn-primary" onClick={handleTransfer}>
+          <button type="submit" className="btn btn-primary">
             Transfer Stock
           </button>
-        </div>
+        </form>
+      </div>
+
+      <div className="card" style={{ marginTop: '2rem' }}>
+        <h2>Recent Transfers</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>By</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {transfers.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                  No transfers recorded yet
+                </td>
+              </tr>
+            ) : (
+              transfers.map(transfer => (
+                <tr key={transfer.id}>
+                  <td>{new Date(transfer.date).toLocaleString()}</td>
+                  <td>{locations[transfer.from]}</td>
+                  <td>{locations[transfer.to]}</td>
+                  <td>{transfer.itemName}</td>
+                  <td>{transfer.quantity}</td>
+                  <td>{transfer.transferredBy}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+
+        </table>
       </div>
     </div>
   );

@@ -19,14 +19,20 @@ function Reports({ selectedLocation }) {
   const generateReports = () => {
     const allInventory = getItem('inventory', []);
     const allSales = getItem('sales', []);
-    
-    const locationInventory = allInventory.filter(item => item.location === selectedLocation);
-    const locationSales = allSales.filter(sale => sale.location === selectedLocation);
-    
-    const totalRevenue = locationSales.reduce((sum, sale) => sum + sale.total, 0);
+
+    // Exclude voided sales
+    const activeSales = allSales.filter(sale => !sale.voided);
+    const locationSales = activeSales.filter(sale => sale.location === selectedLocation);
+
+    // Calculate totals
+    const totalRevenue = locationSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalProfit = locationSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+
+    // Inventory stats
+    const locationInventory = allInventory.filter(item => item.location === selectedLocation);
     const lowStockItems = locationInventory.filter(item => item.quantity <= item.minStock);
-    
+
+    // Top selling products
     const productSales = {};
     locationSales.forEach(sale => {
       sale.items.forEach(item => {
@@ -39,20 +45,21 @@ function Reports({ selectedLocation }) {
         productSales[item.name].profit += isNaN(itemProfit) ? 0 : itemProfit;
       });
     });
-    
+
     const topProducts = Object.entries(productSales)
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 5)
       .map(([name, data]) => ({ name, ...data }));
 
+    // Sales & profit over time (last 30 days)
     const salesOverTime = locationSales.reduce((acc, sale) => {
-        const date = new Date(sale.date).toLocaleDateString();
-        if (!acc[date]) {
-            acc[date] = { date, revenue: 0, profit: 0 };
-        }
-        acc[date].revenue += sale.total;
-        acc[date].profit += sale.profit || 0;
-        return acc;
+      const date = new Date(sale.date).toLocaleDateString();
+      if (!acc[date]) {
+        acc[date] = { date, revenue: 0, profit: 0 };
+      }
+      acc[date].revenue += sale.total || 0;
+      acc[date].profit += sale.profit || 0;
+      return acc;
     }, {});
 
     setStats({
@@ -61,7 +68,7 @@ function Reports({ selectedLocation }) {
       totalSales: locationSales.length,
       topProducts,
       lowStockItems,
-      salesOverTime: Object.values(salesOverTime).slice(-30) // Last 30 days
+      salesOverTime: Object.values(salesOverTime).slice(-30) // last 30 days
     });
   };
 
