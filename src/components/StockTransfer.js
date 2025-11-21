@@ -3,8 +3,8 @@ import { getCollection, updateItem, addItem } from '../utils/storage';
 
 function StockTransfer({ currentLocation, currentUser }) {
   const [inventory, setInventory] = useState([]);
-  const [fromLocation, setFromLocation] = useState('shop1'); // Default source
-  const [toLocation, setToLocation] = useState('warehouse'); // Default destination
+  const [fromLocation, setFromLocation] = useState('shop1');
+  const [toLocation, setToLocation] = useState('warehouse');
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
   const [transfers, setTransfers] = useState([]);
@@ -20,12 +20,10 @@ function StockTransfer({ currentLocation, currentUser }) {
     shop6: 'Fancy Liquor - Kadoma'
   };
 
-  // 1. Load Inventory for the "From" Location
   const loadInventory = useCallback(async () => {
     setLoading(true);
     try {
       const allInventory = await getCollection('inventory');
-      // Filter items that belong to the source location
       const locationInventory = allInventory.filter(
         item => item.location === fromLocation
       );
@@ -37,11 +35,9 @@ function StockTransfer({ currentLocation, currentUser }) {
     }
   }, [fromLocation]);
 
-  // 2. Load Transfer History
   const loadTransfers = useCallback(async () => {
     try {
       const allTransfers = await getCollection('transfers');
-      // Sort by date (newest first) and take top 10
       const sorted = allTransfers.sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransfers(sorted.slice(0, 10));
     } catch (error) {
@@ -79,10 +75,8 @@ function StockTransfer({ currentLocation, currentUser }) {
 
     setLoading(true);
     try {
-      // Refresh inventory to ensure stock levels are accurate
       const allInventory = await getCollection('inventory');
       
-      // A. Find Source Item
       const sourceItem = allInventory.find(item => 
         item.id === selectedItem && item.location === fromLocation
       );
@@ -93,33 +87,28 @@ function StockTransfer({ currentLocation, currentUser }) {
         return;
       }
 
-      if (transferQty > sourceItem.quantity) {
+      // MATH SAFETY: Ensure we compare numbers
+      if (transferQty > Number(sourceItem.quantity)) {
         alert(`Not enough stock! Available: ${sourceItem.quantity}`);
         setLoading(false);
         return;
       }
 
-      // B. Find (or Create) Destination Item
       const destItem = allInventory.find(item => 
         item.name === sourceItem.name && item.location === toLocation
       );
 
-      // C. Perform the Transfer
-      
-      // 1. Deduct from Source
+      // 1. Deduct from Source (Subtraction is usually safe, but being explicit helps)
       await updateItem('inventory', sourceItem.id, { 
-        quantity: sourceItem.quantity - transferQty 
+        quantity: Number(sourceItem.quantity) - transferQty 
       });
 
-      // 2. Add to Destination
+      // 2. Add to Destination (CRITICAL FIX)
       if (destItem) {
-        // Update existing item
         await updateItem('inventory', destItem.id, { 
-          quantity: destItem.quantity + transferQty 
+          quantity: Number(destItem.quantity) + transferQty 
         });
       } else {
-        // Create new item at destination
-        // We remove the old ID so Firebase generates a new unique one
         const { id, ...itemData } = sourceItem;
         await addItem('inventory', {
           ...itemData,
@@ -128,7 +117,6 @@ function StockTransfer({ currentLocation, currentUser }) {
         });
       }
 
-      // 3. Record the Transfer Log
       await addItem('transfers', {
         date: new Date().toISOString(),
         from: fromLocation,
@@ -142,7 +130,6 @@ function StockTransfer({ currentLocation, currentUser }) {
       setQuantity('');
       setSelectedItem('');
       
-      // Refresh data
       await loadInventory();
       await loadTransfers();
 

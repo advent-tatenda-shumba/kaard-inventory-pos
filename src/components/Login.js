@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -14,19 +15,29 @@ function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      // 1. Authenticate with Firebase
+      // 1. Authenticate with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // 2. Pass user info up to App.js
-      // Note: We will fetch the user's "Role" (admin/cashier) in App.js later
-      onLogin({
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        // Temporary default until we connect the Users collection
-        role: email.includes('admin') ? 'admin' : 'cashier', 
-        shop: 'all' 
-      });
+      // 2. Fetch User Profile from Firestore
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        // 3. Log in with Real Database Role
+        onLogin({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          username: userData.username,
+          role: userData.role,
+          shop: userData.shop
+        });
+      } else {
+        console.error('User profile not found in Firestore');
+        setError('Profile not found. Contact admin.');
+      }
       
     } catch (err) {
       console.error(err);
@@ -71,6 +82,12 @@ function Login({ onLogin }) {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        
+        <div className="login-footer">
+          <p style={{fontSize: '0.85rem', color: '#666', marginTop: '1rem', textAlign: 'center'}}>
+            Contact your administrator for login credentials
+          </p>
+        </div>
       </div>
     </div>
   );

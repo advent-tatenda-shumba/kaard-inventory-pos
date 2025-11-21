@@ -1,0 +1,189 @@
+/* src/components/Welcome.css */
+
+/* Wrapper */
+.welcome-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(135deg, #2a7a3e 0%, #4caf50 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+    z-index: 99999; 
+}
+
+.welcome-logo-container {
+    text-align: center;
+    animation: fadeIn 1.5s ease-in;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* RENAMED: Added 'welcome-' prefix to prevent conflicts */
+.welcome-logo-text {
+    font-size: clamp(2rem, 8vw, 4.5rem);
+    font-weight: 700;
+    color: white;
+    letter-spacing: -2px;
+    margin-bottom: 3rem;
+}
+
+.welcome-logo-text .kaard {
+    color: white;
+}
+
+.welcome-logo-text .pos {
+    color: #ffd700;
+    font-weight: 800;
+}
+
+.icon-group {
+    position: relative;
+    width: clamp(250px, 40vw, 400px);
+    height: clamp(250px, 40vw, 400px);
+    margin: 0 auto 3rem;
+}
+
+.circle-bg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 85%;
+    height: 85%;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.icon {
+    position: absolute;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+
+.cart {
+    width: 35%;
+    height: 45%;
+    background: #34495e;
+    top: 15%;
+    left: 10%;
+    animation: slideInLeft 1s ease-out 0.3s both;
+}
+
+.cart::before {
+    content: '🛒';
+    font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.receipt {
+    width: 28%;
+    height: 50%;
+    background: #ff9800;
+    top: 20%;
+    left: 40%;
+    animation: slideInTop 1s ease-out 0.5s both;
+}
+
+.receipt::before {
+    content: '🧾';
+    font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.box {
+    width: 32%;
+    height: 42%;
+    background: #455a64;
+    top: 25%;
+    right: 12%;
+    animation: slideInRight 1s ease-out 0.7s both;
+}
+
+.box::before {
+    content: '📦';
+    font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.tagline {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    color: white;
+    font-weight: 300;
+    letter-spacing: 1px;
+    animation: fadeIn 2s ease-in 1s both;
+    margin-bottom: 3rem;
+}
+
+.tagline .highlight {
+    font-style: italic;
+    font-weight: 500;
+    color: #ffd700;
+}
+
+.btn-enter {
+    margin-top: 1rem;
+    padding: 1rem 3rem;
+    font-size: 1.2rem;
+    background-color: white;
+    color: #2a7a3e;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: fadeIn 2s ease-in 1.5s both;
+}
+
+.btn-enter:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-100px) rotate(-15deg); }
+    to { opacity: 1; transform: translateX(0) rotate(0deg); }
+}
+
+@keyframes slideInTop {
+    from { opacity: 0; transform: translateY(-100px) scale(0.8); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(100px) rotate(15deg); }
+    to { opacity: 1; transform: translateX(0) rotate(0deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.15; }
+    50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.25; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .welcome-logo-text { margin-bottom: 2rem; }
+    .icon-group { margin-bottom: 2rem; }
+}
+
+@media (max-width: 480px) {
+    .welcome-logo-text { margin-bottom: 1.5rem; }
+    .icon-group { margin-bottom: 1.5rem; }
+}

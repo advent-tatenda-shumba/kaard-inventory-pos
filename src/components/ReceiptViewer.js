@@ -1,19 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { getItem } from '../utils/storage';
+import { getCollection } from '../utils/storage';
 
 function ReceiptViewer({ receiptId }) {
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const allSales = getItem('sales', []);
-    const foundSale = allSales.find(s => s.id === parseInt(receiptId));
-    setSale(foundSale);
-    setLoading(false);
+    const loadReceipt = async () => {
+      setLoading(true);
+      try {
+        const allSales = await getCollection('sales');
+        const foundSale = allSales.find(s => s.id === receiptId);
+        setSale(foundSale);
+      } catch (error) {
+        console.error('Error loading receipt:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadReceipt();
   }, [receiptId]);
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>;
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Receipt...</div>;
   }
 
   if (!sale) {
@@ -63,9 +73,9 @@ function ReceiptViewer({ receiptId }) {
             <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '0.5rem' }}>{item.name}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{item.cartQuantity}</td>
-              <td style={{ textAlign: 'right', padding: '0.5rem' }}>${item.sellPrice.toFixed(2)}</td>
+              <td style={{ textAlign: 'right', padding: '0.5rem' }}>${(item.sellPrice || 0).toFixed(2)}</td>
               <td style={{ textAlign: 'right', padding: '0.5rem' }}>
-                ${(item.sellPrice * item.cartQuantity).toFixed(2)}
+                ${((item.sellPrice || 0) * (item.cartQuantity || 0)).toFixed(2)}
               </td>
             </tr>
           ))}

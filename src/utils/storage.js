@@ -5,18 +5,20 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc 
+  doc,
+  getDoc,
+  setDoc 
 } from 'firebase/firestore';
 
 // ==========================================
-// 1. NEW FIREBASE FUNCTIONS (The Future)
+// 1. CORE FIREBASE FUNCTIONS
 // ==========================================
 
 export const getCollection = async (collectionName) => {
   try {
     const querySnapshot = await getDocs(collection(db, collectionName));
     return querySnapshot.docs.map(doc => ({
-      id: doc.id, // Use Firebase's random ID
+      id: doc.id,
       ...doc.data()
     }));
   } catch (error) {
@@ -57,58 +59,32 @@ export const deleteItem = async (collectionName, id) => {
 };
 
 // ==========================================
-// 2. LEGACY FUNCTIONS (CRITICAL FOR NOW)
-// (These prevent App.js from crashing while we migrate)
+// 2. USER MANAGEMENT
 // ==========================================
 
-export const getItem = (key, defaultValue = []) => {
+export const getUserProfile = async (userId) => {
   try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
-  } catch (error) {
-    console.error(`Error getting item "${key}" from localStorage`, error);
-    return defaultValue;
-  }
-};
-
-export const setItem = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.error(`Error setting item "${key}" in localStorage`, error);
-  }
-};
-
-export const initializeUsers = () => {
-  // Kept to prevent import errors in index.js/App.js
-  const users = getItem('users', null);
-  if (users === null) {
-    setItem('users', [
-      { username: 'admin', password: 'admin123', role: 'admin', shop: 'all' }
-    ]);
-  }
-};
-
-// ==========================================
-// 3. MIGRATION TOOL
-// ==========================================
-
-export const uploadLocalDataToFirebase = async () => {
-  const collections = ['inventory', 'sales', 'stockRequests', 'transfers'];
-  
-  for (const name of collections) {
-    const localData = localStorage.getItem(name);
-    if (localData) {
-      const parsed = JSON.parse(localData);
-      console.log(`Uploading ${parsed.length} items to ${name}...`);
-      
-      for (const item of parsed) {
-        // Remove the old numeric ID to let Firebase generate a secure string ID
-        const { id, ...data } = item; 
-        await addDoc(collection(db, name), data);
-      }
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists()) {
+      return userDoc.data();
     }
+    return null;
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return null;
   }
-  console.log("Migration Complete!");
-  alert("Data uploaded to Firebase!");
+};
+
+// Used to initialize users in the database from a script
+export const createUserProfile = async (uid, userData) => {
+  try {
+    await setDoc(doc(db, 'users', uid), {
+      ...userData,
+      createdAt: new Date().toISOString()
+    });
+    console.log(`Profile created for ${userData.email}`);
+  } catch (error) {
+    console.error("Error creating user profile:", error);
+    throw error;
+  }
 };
