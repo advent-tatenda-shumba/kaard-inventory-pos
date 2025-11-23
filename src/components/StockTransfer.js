@@ -3,8 +3,8 @@ import { getCollection, updateItem, addItem } from '../utils/storage';
 
 function StockTransfer({ currentLocation, currentUser }) {
   const [inventory, setInventory] = useState([]);
-  const [fromLocation, setFromLocation] = useState('shop1');
-  const [toLocation, setToLocation] = useState('warehouse');
+  const [fromLocation, setFromLocation] = useState('warehouse'); // Default to Warehouse usually best for transfers
+  const [toLocation, setToLocation] = useState('shop1');
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
   const [transfers, setTransfers] = useState([]);
@@ -19,6 +19,18 @@ function StockTransfer({ currentLocation, currentUser }) {
     shop5: 'Kaard Liquor - Masasa',
     shop6: 'Fancy Liquor - Kadoma'
   };
+
+  // --- THE FIX: Auto-switch "To Location" if it conflicts ---
+  useEffect(() => {
+    if (fromLocation === toLocation) {
+      // Find the first location that isn't the "From" location
+      const nextAvailable = Object.keys(locations).find(key => key !== fromLocation);
+      if (nextAvailable) {
+        setToLocation(nextAvailable);
+      }
+    }
+  }, [fromLocation, toLocation]); 
+  // ----------------------------------------------------------
 
   const loadInventory = useCallback(async () => {
     setLoading(true);
@@ -87,7 +99,6 @@ function StockTransfer({ currentLocation, currentUser }) {
         return;
       }
 
-      // MATH SAFETY: Ensure we compare numbers
       if (transferQty > Number(sourceItem.quantity)) {
         alert(`Not enough stock! Available: ${sourceItem.quantity}`);
         setLoading(false);
@@ -98,12 +109,12 @@ function StockTransfer({ currentLocation, currentUser }) {
         item.name === sourceItem.name && item.location === toLocation
       );
 
-      // 1. Deduct from Source (Subtraction is usually safe, but being explicit helps)
+      // 1. Deduct from Source
       await updateItem('inventory', sourceItem.id, { 
         quantity: Number(sourceItem.quantity) - transferQty 
       });
 
-      // 2. Add to Destination (CRITICAL FIX)
+      // 2. Add to Destination
       if (destItem) {
         await updateItem('inventory', destItem.id, { 
           quantity: Number(destItem.quantity) + transferQty 
