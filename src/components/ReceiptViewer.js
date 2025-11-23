@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getCollection } from '../utils/storage';
+import './Receipt.css'; // Import the new styles
 
 function ReceiptViewer({ receiptId }) {
   const [sale, setSale] = useState(null);
@@ -18,79 +19,92 @@ function ReceiptViewer({ receiptId }) {
         setLoading(false);
       }
     };
-    
     loadReceipt();
   }, [receiptId]);
 
-  if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Receipt...</div>;
-  }
-
+  if (loading) return <div style={{padding:'2rem', textAlign:'center'}}>Verifying Invoice...</div>;
+  
   if (!sale) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <h2>Receipt Not Found</h2>
-        <p>Receipt #{receiptId} does not exist.</p>
+      <div className="digital-container" style={{textAlign: 'center'}}>
+        <div className="check-circle" style={{backgroundColor: '#dc3545'}}>×</div>
+        <h2>Invoice Not Found</h2>
+        <p>This receipt ID does not exist in our records.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ 
-      maxWidth: '600px', 
-      margin: '2rem auto', 
-      padding: '2rem', 
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ margin: '0 0 0.5rem 0' }}>KAARD STORES</h1>
-        <p style={{ margin: 0, color: '#666' }}>{sale.location.toUpperCase()}</p>
+    <div className="digital-container">
+      
+      {/* LOGO HEADER */}
+      <div style={{textAlign: 'center', marginBottom: '20px'}}>
+        <img 
+          src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+          alt="Logo" 
+          style={{width: '60px', height: '60px'}} 
+        />
       </div>
 
-      <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '1rem 0' }} />
-
-      <div style={{ marginBottom: '1.5rem' }}>
-        <p><strong>Date:</strong> {new Date(sale.date).toLocaleString()}</p>
-        <p><strong>Cashier:</strong> {sale.cashier}</p>
-        <p><strong>Receipt #:</strong> {sale.id}</p>
+      {/* STATUS BADGE */}
+      <div className="status-badge">
+        <h3>Invoice is valid</h3>
+        <div className="check-circle">✓</div>
       </div>
 
-      <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '1rem 0' }} />
+      {/* DETAILS FORM */}
+      <div>
+        <div className="digital-label">TRADING NAME</div>
+        <div className="digital-value-box">KAARD STORES {sale.location.toUpperCase()}</div>
 
-      <table style={{ width: '100%', marginBottom: '1.5rem', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid #ddd' }}>
-            <th style={{ textAlign: 'left', padding: '0.5rem' }}>Item</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem' }}>Qty</th>
-            <th style={{ textAlign: 'right', padding: '0.5rem' }}>Price</th>
-            <th style={{ textAlign: 'right', padding: '0.5rem' }}>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sale.items.map((item, idx) => (
-            <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td style={{ padding: '0.5rem' }}>{item.name}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{item.cartQuantity}</td>
-              <td style={{ textAlign: 'right', padding: '0.5rem' }}>${(item.sellPrice || 0).toFixed(2)}</td>
-              <td style={{ textAlign: 'right', padding: '0.5rem' }}>
-                ${((item.sellPrice || 0) * (item.cartQuantity || 0)).toFixed(2)}
-              </td>
-            </tr>
+        <div className="digital-label">ADDRESS</div>
+        <div className="digital-value-box">25 Samora Machel Avenue, Harare</div>
+
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+          <div>
+            <div className="digital-label">INVOICE DATE</div>
+            <div className="digital-value-box">{new Date(sale.date).toLocaleDateString()}</div>
+          </div>
+          <div>
+            <div className="digital-label">INVOICE TIME</div>
+            <div className="digital-value-box">{new Date(sale.date).toLocaleTimeString()}</div>
+          </div>
+        </div>
+
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+           <div>
+             <div className="digital-label">INVOICE TOTAL</div>
+             <div className="digital-total-box">
+               <span>${(sale.total || 0).toFixed(2)}</span>
+             </div>
+           </div>
+           <div>
+             <div className="digital-label">CURRENCY</div>
+             <div className="digital-total-box">
+               <span>USD</span>
+             </div>
+           </div>
+        </div>
+
+        <div className="digital-label">ITEMS PURCHASED</div>
+        <div className="digital-value-box" style={{fontSize: '0.85rem'}}>
+          {sale.items.map((item, i) => (
+            <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', borderBottom:'1px solid #ccc', paddingBottom:'2px'}}>
+               <span>{item.name} (x{item.cartQuantity})</span>
+               <span>${((item.sellPrice || 0) * item.cartQuantity).toFixed(2)}</span>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
 
-      <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '1rem 0' }} />
+        <button className="btn btn-success" style={{width: '100%', padding: '15px', marginTop: '20px'}}>
+          REVIEW INVOICE
+        </button>
 
-      <div style={{ textAlign: 'right', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '2rem' }}>
-        TOTAL: ${(sale.total || 0).toFixed(2)}
+        <div style={{textAlign: 'center', marginTop: '2rem', fontSize: '0.7rem', color: '#999'}}>
+          KAARD SYSTEMS VERIFICATION PORTAL
+        </div>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: '2rem', color: '#666', fontSize: '0.9rem' }}>
-        <p>Thank you for shopping with us!</p>
-      </div>
     </div>
   );
 }

@@ -17,6 +17,49 @@ function POS({ selectedLocation, currentUser }) {
     }
   }, [selectedLocation]);
 
+// --- BARCODE SCANNER LISTENER ---
+  useEffect(() => {
+    let barcodeBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e) => {
+      const currentTime = Date.now();
+      
+      // If checks specific to scanner "typing" speed (scanners are faster than humans)
+      if (currentTime - lastKeyTime > 100) {
+        barcodeBuffer = ''; // Reset if typing is too slow (human typing)
+      }
+      lastKeyTime = currentTime;
+
+      if (e.key === 'Enter') {
+        if (barcodeBuffer.length > 3) { // Minimum barcode length check
+          handleBarcodeScan(barcodeBuffer);
+        }
+        barcodeBuffer = '';
+      } else if (e.key.length === 1) {
+        // Append printable characters
+        barcodeBuffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inventory, cart]); // Re-bind when inventory changes
+
+  const handleBarcodeScan = (code) => {
+    const product = inventory.find(p => p.barcode === code);
+    if (product) {
+      if (product.quantity > 0) {
+        addToCart(product);
+        // Optional: Play a 'beep' sound here
+      } else {
+        alert(`Item ${product.name} is out of stock!`);
+      }
+    } else {
+      console.log("Barcode not found in inventory:", code);
+    }
+  };
+
   const loadInventory = async () => {
     setLoading(true);
     try {
@@ -34,12 +77,12 @@ function POS({ selectedLocation, currentUser }) {
 
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.id === product.id);
-    
+
     if (existingItem) {
       if (existingItem.cartQuantity < product.quantity) {
         setCart(cart.map(item =>
-          item.id === product.id 
-            ? { ...item, cartQuantity: item.cartQuantity + 1 } 
+          item.id === product.id
+            ? { ...item, cartQuantity: item.cartQuantity + 1 }
             : item
         ));
       }
@@ -50,7 +93,7 @@ function POS({ selectedLocation, currentUser }) {
 
   const updateCartQuantity = (id, newQuantity) => {
     const product = inventory.find(p => p.id === id);
-    
+
     if (newQuantity <= 0) {
       setCart(cart.filter(item => item.id !== id));
     } else if (product && newQuantity <= product.quantity) {
@@ -87,7 +130,7 @@ function POS({ selectedLocation, currentUser }) {
     try {
       // A. Validate Stock one last time (Race Condition Check)
       const currentInventory = await getCollection('inventory');
-      
+
       for (const cartItem of cart) {
         const dbItem = currentInventory.find(i => i.id === cartItem.id);
         if (!dbItem || dbItem.quantity < cartItem.cartQuantity) {
@@ -152,16 +195,16 @@ function POS({ selectedLocation, currentUser }) {
           placeholder="Search products..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ 
-            width: '100%', 
-            padding: '0.75rem', 
-            marginBottom: '1rem', 
-            border: '1px solid #dee2e6', 
-            borderRadius: '4px' 
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            marginBottom: '1rem',
+            border: '1px solid #dee2e6',
+            borderRadius: '4px'
           }}
         />
 
-        {loading && <p style={{textAlign: 'center'}}>Syncing with cloud...</p>}
+        {loading && <p style={{ textAlign: 'center' }}>Syncing with cloud...</p>}
 
         <div className="products-grid">
           {filteredInventory.map(product => (
@@ -180,10 +223,10 @@ function POS({ selectedLocation, currentUser }) {
 
       <div className="cart-section">
         <h2>Cart</h2>
-        
+
         <div className="cart-items">
           {cart.length === 0 ? (
-            <p style={{textAlign: 'center', color: '#6c757d'}}>Cart is empty</p>
+            <p style={{ textAlign: 'center', color: '#6c757d' }}>Cart is empty</p>
           ) : (
             cart.map(item => (
               <div key={item.id} className="cart-item">
@@ -203,9 +246,9 @@ function POS({ selectedLocation, currentUser }) {
                   <button onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}>
                     +
                   </button>
-                  <button 
-                    onClick={() => removeFromCart(item.id)} 
-                    style={{backgroundColor: '#dc3545'}}
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    style={{ backgroundColor: '#dc3545' }}
                   >
                     ×
                   </button>
@@ -231,7 +274,7 @@ function POS({ selectedLocation, currentUser }) {
           </button>
         </div>
       </div>
-      
+
       {showReceipt && lastSale && (
         <ReceiptModal sale={lastSale} onClose={() => setShowReceipt(false)} />
       )}

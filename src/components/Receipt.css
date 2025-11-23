@@ -1,0 +1,141 @@
+/* src/components/Receipt.css */
+
+/* --- 1. SHARED STYLES --- */
+.receipt-font {
+  font-family: 'Courier New', Courier, monospace; /* Essential for thermal look */
+  font-size: 12px;
+  line-height: 1.4;
+  color: black;
+}
+
+/* --- 2. PRINT / THERMAL MODAL STYLES --- */
+.thermal-receipt {
+  width: 100%;
+  max-width: 300px; /* Standard width for 80mm thermal printers */
+  margin: 0 auto;
+  padding: 10px;
+  background: white;
+}
+
+.thermal-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.thermal-logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 5px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.dashed-line {
+  border-top: 1px dashed black;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.thermal-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.thermal-item-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.thermal-total {
+  font-weight: bold;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.qr-container {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.verification-text {
+  text-align: center;
+  font-size: 10px;
+  margin-top: 5px;
+  word-break: break-all;
+}
+
+/* --- 3. DIGITAL / MOBILE VIEW STYLES (The "Green Check" Page) --- */
+.digital-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.status-badge {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.check-circle {
+  width: 60px;
+  height: 60px;
+  background: #28a745;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 30px;
+  margin: 0 auto 10px;
+  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+}
+
+.digital-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.digital-value-box {
+  background: #e9ecef;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  color: #333;
+  font-weight: 500;
+  font-size: 0.95rem;
+  border-left: 4px solid #ced4da;
+}
+
+.digital-total-box {
+  background: #e9ecef;
+  padding: 12px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 4px solid #28a745; /* Green accent for money */
+}
+
+/* --- PRINT MEDIA QUERY (Hides buttons when printing) --- */
+@media print {
+  body * { visibility: hidden; }
+  .thermal-receipt, .thermal-receipt * { visibility: visible; }
+  .thermal-receipt { 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    margin: 0;
+  }
+  .modal-overlay { position: static; background: white; }
+  .modal-actions, .navbar { display: none !important; }
+}
